@@ -7,8 +7,6 @@
 make_posthoc_plots(
   samplename,
   logr_file,
-  subclones_file,
-  rho_psi_file,
   bafsegmented_file,
   logrsegmented_file,
   allelecounts_file = NULL,
@@ -20,10 +18,6 @@ make_posthoc_plots(
 \item{samplename}{Name of the sample for the plot title}
 
 \item{logr_file}{File containing all logR data}
-
-\item{subclones_file}{File with the copy number fit}
-
-\item{rho_psi_file}{File with rho and psi parameters}
 
 \item{bafsegmented_file}{File containing the BAFsegmented data}
 

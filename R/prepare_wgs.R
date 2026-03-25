@@ -78,7 +78,7 @@ getBAFsAndLogRs = function(tumourAlleleCountsFile.prefix, normalAlleleCountsFile
   matched_data = Reduce(intersect, list(chrpos_allele, chrpos_normal, chrpos_tumour))
 
   allele_data = allele_data[chrpos_allele %in% matched_data,]
-  normal_input_data = normal_input_data[chrpos_tumour %in% matched_data,]
+  normal_input_data = normal_input_data[chrpos_normal %in% matched_data,]
   input_data = input_data[chrpos_tumour %in% matched_data,]
 
   # Clean up and reduce amount of unneeded data
@@ -359,7 +359,7 @@ gc.correct.wgs = function(Tumour_LogR_file, outfile, correlations_outfile, gc_co
   Tumor_LogR[,3] = residuals(model)
   rm(model, corrdata)
 
-  readr::write_tsv(x=Tumor_LogR[which(!is.na(Tumor_LogR[,3])), ], path=outfile)
+  readr::write_tsv(x=Tumor_LogR[which(!is.na(Tumor_LogR[,3])), ], file=outfile)
 
   if (recalc_corr_afterwards) {
     # Recalculate the correlations to see how much there is left
