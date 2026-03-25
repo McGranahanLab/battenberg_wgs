@@ -14,9 +14,12 @@ Check if script with mock data works:
 Rscript /src/integration_test/battenberg_wgs_smoke.R
 
 if not, make changes in the repository, and reinstall:
-R -q -e "library(utils);remove.packages('Battenberg')"
-R CMD INSTALL /src
-Rscript /src/integration_test/battenberg_wgs_smoke.R
 
-source('/src/integration_test/battenberg_wgs_smoke.R')
+removePackages('Battenberg')
+q()
+R CMD INSTALL /src
+
+R CMD INSTALL /src/oriols-dev-multi
+
+
 to skip expensive allele counter, set skip_allele_counting to True

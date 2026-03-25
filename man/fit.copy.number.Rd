@@ -2,7 +2,7 @@
 % Please edit documentation in R/fitcopynumber.R
 \name{fit.copy.number}
 \alias{fit.copy.number}
-\title{Fit copy number}
+  itle{Fit copy number}
 \usage{
 fit.copy.number(
   samplename,
@@ -24,6 +24,8 @@ fit.copy.number(
   preset_psi = NA,
   read_depth = 30,
   analysis = "paired",
+  nthreads,
+  enhanced_grid_search = F,
   PURPLE_purity_path,
   Tx421_WES_purity_path
 )
@@ -66,6 +68,14 @@ fit.copy.number(
 \item{read_depth}{Legacy parameter that is no longer used (Default 30)}
 
 \item{analysis}{A String representing the type of analysis to be run, this determines whether the distance figure is produced (Default paired)}
+
+\item{nthreads}{The number of concurrent processes to use while running the copy number fitting workflow}
+
+\item{enhanced_grid_search}{Should use multi-start, parallelized and multi-approach grid search (Default FALSE)}
+
+\item{PURPLE_purity_path}{Path to a tab-delimited PURPLE purity/ploidy solution file (Default NULL)}
+
+\item{Tx421_WES_purity_path}{Path to a tab-delimited WES purity/ploidy solution file (Default NULL)}
 }
 \description{
 Function that will fit a clonal copy number profile to segmented data. It first

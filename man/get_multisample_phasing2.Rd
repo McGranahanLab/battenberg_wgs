@@ -7,7 +7,7 @@
 get_multisample_phasing2(
   chrom,
   bbphasingprefixes,
-  maxlag = 100,
+  maxlag = 90,
   relative_weight_balanced = 0.25,
   outprefix
 )
