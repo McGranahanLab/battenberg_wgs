@@ -12,7 +12,7 @@ run.impute(
   impute.exe = "impute2",
   region.size = 5000000,
   chrom = NA,
-  seed = as.integer(Sys.time())
+  seed = as.integer(1)
 )
 }
 \arguments{

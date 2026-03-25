@@ -11,7 +11,7 @@
 #' @param seed The seed to be set
 #' @author dw9
 #' @export
-run.impute = function(inputfile, outputfile.prefix, is.male, imputeinfofile, impute.exe="impute2", region.size=5000000, chrom=NA, seed=as.integer(Sys.time())) {
+run.impute = function(inputfile, outputfile.prefix, is.male, imputeinfofile, impute.exe="impute2", region.size=5000000, chrom=NA, seed=as.integer(1)) {
   
   # Read in the impute file information
   impute.info = parse.imputeinfofile(imputeinfofile, is.male, chrom=chrom)

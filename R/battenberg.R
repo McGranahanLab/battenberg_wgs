@@ -84,11 +84,13 @@ battenberg = function(analysis="paired", tumourname, normalname, tumour_data_fil
                       norm.geno.clust.exe="normalize_affy_geno_cluster.pl", birdseed_report_file="birdseed.report.txt", heterozygousFilter="none",
                       prior_breakpoints_file=NULL, GENOMEBUILD="hg19", chrom_coord_file=NULL,
                       purple_path=NULL,
-                      WES_solutions=NULL) {
+                      WES_solutions=NULL,
+                      seed=as.integer(1)) {
   
   requireNamespace("foreach")
   requireNamespace("doParallel")
   requireNamespace("parallel")
+  requireNamespace("R.utils")
   
   if (analysis == "cell_line"){
 	  calc_seg_baf_option=1
@@ -602,37 +604,39 @@ prepare_wgs_germline(chrom_names=chrom_names,
   for(i in 1:length(all_text_files)){
 
     file_name <- all_text_files[i]
-    n <- sub("\\.txt", "", file_name)
-    nn <- paste0(n, ".txt.gz")
-
-    R.utils::gzip(file_name, nn)
-
+    old_name <- sub("\\.txt", "", file_name)
+    new_name <- paste0(old_name, ".txt.gz")
+    if (!file.exists(new_name)) {
+      R.utils::gzip(file_name, new_name)
+    }
   }
 
   #and change the tab files
   all_tab_files <- list.files(pattern = ".tab$")
+  if (length(all_tab_files) > 0) {
+    for(i in 1:length(all_tab_files)){
 
-  for(i in 1:length(all_tab_files)){
-
-    file_name <- all_tab_files[i]
-    n <- sub("\\.tab", "", file_name)
-    nn <- paste0(n, ".tab.gz")
-
-    R.utils::gzip(file_name, nn)
-
+      file_name <- all_tab_files[i]
+      old_name <- sub("\\.tab", "", file_name)
+      new_name <- paste0(old_name, ".tab.gz")
+      if (!file.exists(new_name)) {
+        R.utils::gzip(file_name, new_name)
+      }
+    }
   }
 
   #and change the log files
   all_log_files <- list.files(pattern = ".log$")
+  if (length(all_log_files) > 0) {
+    for(i in 1:length(all_log_files)){
 
-  for(i in 1:length(all_log_files)){
+      file_name <- all_log_files[i]
+      old_name <- sub("\\.log", "", file_name)
+      new_name <- paste0(old_name, ".log.gz")
+      if (!file.exists(new_name)) {
+        R.utils::gzip(file_name, new_name)
+      }
 
-    file_name <- all_log_files[i]
-    n <- sub("\\.log", "", file_name)
-    nn <- paste0(n, ".log.gz")
-
-    R.utils::gzip(file_name, nn)
-
+    }
   }
-
 }

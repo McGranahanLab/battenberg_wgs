@@ -17,7 +17,7 @@ getBAFsAndLogRs(
   g1000file.prefix,
   minCounts = NA,
   samplename = "sample1",
-  seed = as.integer(Sys.time())
+  seed = as.integer(1)
 )
 }
 \arguments{

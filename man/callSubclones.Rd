@@ -21,7 +21,7 @@ callSubclones(
   siglevel = 0.05,
   maxdist = 0.01,
   noperms = 1000,
-  seed = as.integer(Sys.time()),
+  seed = as.integer(1),
   calc_seg_baf_option = 3
 )
 }

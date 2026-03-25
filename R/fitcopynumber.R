@@ -25,8 +25,7 @@
 #' @param analysis A String representing the type of analysis to be run, this determines whether the distance figure is produced (Default paired)
 #' @author dw9, sd11
 #' @export
-fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmented, inputfile.baf, inputfile.logr, dist_choice, ascat_dist_choice, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1,  max.rho=1.0, min.goodness=63, uninformative_BAF_threshold=0.51, gamma_param=1, use_preset_rho_psi=F, preset_rho=NA, preset_psi=NA, read_depth=30, analysis="paired", PURPLE_purity_path, Tx421_WES_purity_path) {
-  
+fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmented, inputfile.baf, inputfile.logr, dist_choice, ascat_dist_choice, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1,  max.rho=1.0, min.goodness=63, uninformative_BAF_threshold=0.51, gamma_param=1, use_preset_rho_psi=F, preset_rho=NA, preset_psi=NA, read_depth=30, analysis="paired", PURPLE_purity_path="NULL", Tx421_WES_purity_path="NULL") {
   assert.file.exists(inputfile.baf.segmented)
   assert.file.exists(inputfile.baf)
   assert.file.exists(inputfile.logr)
@@ -190,22 +189,16 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   if(!is.null(Tx421_WES_purity_path)){
   wes_solution <- read.table(Tx421_WES_purity_path, head = T, sep = "\t")
   wes_solution <- wes_solution[wes_solution$region == samplename, ]
-
-    if(nrow(wes_solution) > 0){
-      wes_solution <- wes_solution[, c("Ploidy", "ACF")]
-      colnames(wes_solution) <- c("psi", "rho")
-      wes_solution$solution_type <- "WESmanualQC"
-    }
-  }
+  wes_solution <- wes_solution[, c("Ploidy", "ACF")]
+  colnames(wes_solution) <- c("psi", "rho")
+  wes_solution$solution_type <- "WESmanualQC"
   
     if(is.null(PURPLE_purity_path)){
       purple_solution <- wes_solution
     }
-  
-  
-  if(all(!is.null(PURPLE_purity_path), !is.null(Tx421_WES_purity_path))){
-    purple_solution <- rbind(purple_solution, wes_solution)
   }
+  
+
   
   # add this to the alternative solutions but make sure where the different solutions come from
   # actually let's just restructure the data frame to iterate over, so that it also contains the
@@ -214,8 +207,13 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   alternative_solutions_df <- data.frame(ascat_optimum_pair$alternative_solutions)
   alternative_solutions_df <- data.frame(psi = alternative_solutions_df$psi_ploidy, rho = alternative_solutions_df$rho_aberrant_cell_fraction, solution_type = "battenbergAlternative")
   
-  all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df, purple_solution)
-  
+  if(all(!is.null(PURPLE_purity_path), !is.null(Tx421_WES_purity_path))){
+    purple_solution <- rbind(purple_solution, wes_solution)
+    all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df, purple_solution)
+  }else{
+    all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df)
+  }
+    
   num_alt_sol <- nrow(all_alternative_solutions)
   
   print(paste0("running clonal ASCAT for ", num_alt_sol, " alternative soltions"))
@@ -281,7 +279,7 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
 #' @author dw9, sd11
 #' @export
 
-callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.file, output.file, output.figures.prefix, output.gw.figures.prefix, chr_names, masking_output_file, max_allowed_state=250, prior_breakpoints_file=NULL, gamma=1, segmentation.gamma=NA, siglevel=0.05, maxdist=0.01, noperms=1000, seed=as.integer(Sys.time()), calc_seg_baf_option=3) {
+callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.file, output.file, output.figures.prefix, output.gw.figures.prefix, chr_names, masking_output_file, max_allowed_state=250, prior_breakpoints_file=NULL, gamma=1, segmentation.gamma=NA, siglevel=0.05, maxdist=0.01, noperms=1000, seed=as.integer(1), calc_seg_baf_option=3) {
   
   set.seed(seed)
   
