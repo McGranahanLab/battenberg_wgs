@@ -587,7 +587,7 @@ battenberg = function(analysis="paired",
                     nthreads=nthreads,
                     enhanced_grid_search=enhanced_grid_search,
                     PURPLE_purity_path=purple_path[sampleidx],
-                    Tx421_WES_purity_path = WES_solutions)
+                    External_WES_purity_path = WES_solutions)
     
     # KT: need to iterate over callSubclones for each soltion that we find in fit.copy.numberd
     # first read in file with all soltions

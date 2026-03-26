@@ -25,7 +25,7 @@
 #' @param analysis A String representing the type of analysis to be run, this determines whether the distance figure is produced (Default paired)
 #' @author dw9, sd11
 #' @export
-fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmented, inputfile.baf, inputfile.logr, dist_choice, ascat_dist_choice, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1,  max.rho=1.0, min.goodness=63, uninformative_BAF_threshold=0.51, gamma_param=1, use_preset_rho_psi=F, preset_rho=NA, preset_psi=NA, read_depth=30, analysis="paired", nthreads, enhanced_grid_search=F, PURPLE_purity_path, Tx421_WES_purity_path) {
+fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmented, inputfile.baf, inputfile.logr, dist_choice, ascat_dist_choice, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1,  max.rho=1.0, min.goodness=63, uninformative_BAF_threshold=0.51, gamma_param=1, use_preset_rho_psi=F, preset_rho=NA, preset_psi=NA, read_depth=30, analysis="paired", nthreads, enhanced_grid_search=F, PURPLE_purity_path, External_WES_purity_path) {
     
   assert.file.exists(inputfile.baf.segmented)
   assert.file.exists(inputfile.baf)
@@ -183,7 +183,7 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   # so let's iterate over that, make sure format stays same
   # and also add solutions from PURPLE and run over those
   # and also run over manual QC TRACERx421 WES solutions
-  # add the PURPLE and Tx421 WES solutions to the alternative solution path
+  # add the PURPLE and External WES solutions to the alternative solution path
   
   if(!is.null(PURPLE_purity_path)){
     purple_solution <- read.table(PURPLE_purity_path, head = T, sep = "\t")
@@ -192,8 +192,8 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
     purple_solution$solution_type <- "purpleDefault"
   }
 
-  if(!is.null(Tx421_WES_purity_path)){
-  wes_solution <- read.table(Tx421_WES_purity_path, head = T, sep = "\t")
+  if(!is.null(External_WES_purity_path)){
+  wes_solution <- read.table(External_WES_purity_path, head = T, sep = "\t")
   wes_solution <- wes_solution[wes_solution$region == samplename, ]
   wes_solution <- wes_solution[, c("Ploidy", "ACF")]
   colnames(wes_solution) <- c("psi", "rho")
@@ -213,7 +213,7 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   alternative_solutions_df <- data.frame(ascat_optimum_pair$alternative_solutions)
   alternative_solutions_df <- data.frame(psi = alternative_solutions_df$psi_ploidy, rho = alternative_solutions_df$rho_aberrant_cell_fraction, solution_type = "battenbergAlternative")
   
-  if(all(!is.null(PURPLE_purity_path), !is.null(Tx421_WES_purity_path))){
+  if(all(!is.null(PURPLE_purity_path), !is.null(External_WES_purity_path))){
     purple_solution <- rbind(purple_solution, wes_solution)
     all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df, purple_solution)
   }else{

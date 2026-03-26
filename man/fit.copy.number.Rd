@@ -27,7 +27,7 @@ fit.copy.number(
   nthreads,
   enhanced_grid_search = F,
   PURPLE_purity_path,
-  Tx421_WES_purity_path
+  External_WES_purity_path
 )
 }
 \arguments{
@@ -75,7 +75,7 @@ fit.copy.number(
 
 \item{PURPLE_purity_path}{Path to a tab-delimited PURPLE purity/ploidy solution file (Default NULL)}
 
-\item{Tx421_WES_purity_path}{Path to a tab-delimited WES purity/ploidy solution file (Default NULL)}
+\item{External_WES_purity_path}{Path to a tab-delimited WES purity/ploidy solution file (Default NULL)}
 }
 \description{
 Function that will fit a clonal copy number profile to segmented data. It first
