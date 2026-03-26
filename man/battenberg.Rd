@@ -33,6 +33,7 @@ battenberg(
   min_rho = 0.1,
   max_rho = 1,
   min_goodness = 0.63,
+  cn_confidence_level = 0.95,
   uninformative_BAF_threshold = 0.51,
   min_normal_depth = 10,
   min_base_qual = 20,
@@ -68,7 +69,8 @@ battenberg(
   chrom_coord_file = NULL,
   enhanced_grid_search = F,
   purple_path = NULL,
-  WES_solutions = NULL
+  WES_solutions = NULL,
+  seed = as.integer(1)
 )
 }
 \arguments{
@@ -128,6 +130,8 @@ battenberg(
 
 \item{min_goodness}{Minimum goodness of fit required for a purity/ploidy combination to be accepted as a solution (Default: 0.63)}
 
+\item{cn_confidence_level}{Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)}
+
 \item{uninformative_BAF_threshold}{The threshold beyond which BAF becomes uninformative (Default: 0.51)}
 
 \item{min_normal_depth}{Minimum depth required in the matched normal for a SNP to be considered as part of the wgs analysis (Default: 10)}
@@ -172,7 +176,7 @@ battenberg(
 
 \item{multisample_relative_weight_balanced}{Relative weight to give to haplotype info from a sample without allelic imbalance in the region (Default: 0.25)}
 
-\item{multisample_maxlag}{Maximal number of upstream SNPs used in the multisample haplotyping to inform the haplotype at another SNP (Default: 90)}
+\item{multisample_maxlag}{Maximal number of upstream SNPs used in the multisample haplotyping to inform the haplotype at another SNP (Default: 100)}
 
 \item{segmentation_gamma_multisample}{The gamma parameter controls the size of the penalty of starting a new segment during mutlisample segmentation. It is the key parameter for controlling the number of segments (Default: 10)}
 
@@ -192,13 +196,7 @@ battenberg(
 
 \item{genomebuild}{Genome build upon which the 1000G SNP coordinates were obtained (Default: hg19; options: "hg19" or "hg38")}
 
-\item{chrom_coord_file}{Optional path to chromosome coordinate information used during GC correction and plotting (Default: NULL)}
-
 \item{enhanced_grid_search}{Should use multi-start, parallelized and multi-approach grid search (Default: FALSE)}
-
-\item{purple_path}{Optional vector of paths to PURPLE purity/ploidy solution files (Default: NULL)}
-
-\item{WES_solutions}{Optional path to manually curated WES purity/ploidy solutions (Default: NULL)}
 }
 \description{
 Run the Battenberg pipeline

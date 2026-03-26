@@ -68,14 +68,6 @@ fit.copy.number(
 \item{read_depth}{Legacy parameter that is no longer used (Default 30)}
 
 \item{analysis}{A String representing the type of analysis to be run, this determines whether the distance figure is produced (Default paired)}
-
-\item{nthreads}{The number of concurrent processes to use while running the copy number fitting workflow}
-
-\item{enhanced_grid_search}{Should use multi-start, parallelized and multi-approach grid search (Default FALSE)}
-
-\item{PURPLE_purity_path}{Path to a tab-delimited PURPLE purity/ploidy solution file (Default NULL)}
-
-\item{External_WES_purity_path}{Path to a tab-delimited WES purity/ploidy solution file (Default NULL)}
 }
 \description{
 Function that will fit a clonal copy number profile to segmented data. It first

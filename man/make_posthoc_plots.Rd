@@ -7,11 +7,14 @@
 make_posthoc_plots(
   samplename,
   logr_file,
+  subclones_file,
+  rho_psi_file,
   bafsegmented_file,
   logrsegmented_file,
   allelecounts_file = NULL,
   RHO,
-  PSI
+  PSI,
+  solution_type
 )
 }
 \arguments{

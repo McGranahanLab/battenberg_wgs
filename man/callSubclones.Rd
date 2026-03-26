@@ -22,6 +22,7 @@ callSubclones(
   siglevel = 0.05,
   maxdist = 0.01,
   noperms = 1000,
+  cn_confidence_level = 0.95,
   seed = as.integer(1),
   calc_seg_baf_option = 3
 )
@@ -60,6 +61,8 @@ callSubclones(
 \item{maxdist}{Slack in BAF space to allow a segment to be off it's optimum before becoming significant. A segment becomes significant very quickly when a breakpoint is missed, this parameter alleviates the effect (Default 0.01)}
 
 \item{noperms}{The number of permutations to be run when bootstrapping the confidence intervals on the copy number state of each segment (Default 1000)}
+
+\item{cn_confidence_level}{Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)}
 
 \item{seed}{Seed to set when performing bootstrapping (Default: Current time)}
 

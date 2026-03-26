@@ -15,7 +15,8 @@ callChrXsubclones(
   data_type = "wgs",
   RHO,
   PSI,
-  solution_type
+  solution_type,
+  seed = as.integer(1)
 )
 }
 \arguments{
@@ -33,13 +34,7 @@ callChrXsubclones(
 
 \item{chrom_names}{A vector containing the names of chromosomes to be included in the final genome-wide Battenberg copy number plot with chrX}
 
-\item{data_type}{String that contains either wgs or snp6 depending on the supplied input data (Default: wgs)}
-
-\item{RHO}{Purity value used when calling ChrX subclonal copy number}
-
-\item{PSI}{Ploidy value used when calling ChrX subclonal copy number}
-
-\item{solution_type}{Label describing the purity/ploidy solution being applied}
+\item{seed}{Seed to use for deterministic random sampling in the chrX plotting helper (Default: 1)}
 }
 \description{
 Function to call ChrX copy number based on LogR (suitable for male samples). Copy number

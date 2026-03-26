@@ -20,7 +20,8 @@ prepare_wgs(
   min_normal_depth,
   nthreads,
   skip_allele_counting,
-  skip_allele_counting_normal = F
+  skip_allele_counting_normal = F,
+  seed = as.integer(1)
 )
 }
 \arguments{
@@ -55,6 +56,8 @@ prepare_wgs(
 \item{skip_allele_counting}{Flag, set to TRUE if allele counting is already complete (files are expected in the working directory on disk)}
 
 \item{skip_allele_counting_normal}{Flag, set to TRUE from the second sample onwards for multisample case (Default: FALSE)}
+
+\item{seed}{Seed to set for deterministic allele randomisation in BAF generation (Default: 1)}
 }
 \description{
 This function performs part of the Battenberg WGS pipeline: Counting alleles, constructing BAF and logR
