@@ -357,7 +357,10 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   
   # Write the final copy number profile 
   # NAP: generating two output files: first reporting solution A and the second reporting alternative solutions (B to F)
-  write.table(subcloneres[,c(1:3,8:13)], output.file, quote=F, col.names=T, row.names=F, sep="\t")
+  main_columns = c("chr","startpos","endpos","BAF","pval","LogR","ntot","nMajor","nMinor")
+  solution_A_columns = c("nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A","SDfrac_A","SDfrac_A_BS","frac1_A_0.025","frac1_A_0.975")
+
+  write.table(subcloneres[,c(main_columns, solution_A_columns)], output.file, quote=F, col.names=T, row.names=F, sep="\t")
 
   #write.table(subcloneres, gsub(".txt","_extended.txt",output.file), quote=F, col.names=T, row.names=F, sep="\t")
   write.table(subcloneres, paste0(tools::file_path_sans_ext(output.file),"_extended.",tools::file_ext(output.file),sep=""), quote=F, col.names=T, row.names=F, sep="\t")
@@ -613,7 +616,7 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
       }
       
       subcloneres = rbind(subcloneres, c(chrom,startpos-floor(startpos/1000000000)*1000000000,
-                                         endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,
+                                         endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,nMajor,nMinor,
                                          nMaj1[1],nMin1[1],tau[1],nMaj2[1],nMin2[1],1-tau[1],sdtau[1],sdtaubootstrap[1],tau25[1],tau975[1],
                                          nMaj1[2],nMin1[2],tau[2],nMaj2[2],nMin2[2],1-tau[2],sdtau[2],sdtaubootstrap[2],tau25[2],tau975[2],
                                          nMaj1[3],nMin1[3],tau[3],nMaj2[3],nMin2[3],1-tau[3],sdtau[3],sdtaubootstrap[3],tau25[3],tau975[3],
@@ -623,12 +626,12 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
     }else {
       #if called as clonal, use the best corner from the nearest edge
       subcloneres = rbind(subcloneres, c(chrom,startpos-floor(startpos/1000000000)*1000000000,
-                                         endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,
+                                         endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,nMajor,nMinor,
                                          nMaj.test[whichclosestlevel.test],nMin.test[whichclosestlevel.test],1,rep(NA,57)))
       
     }
   }
-  colnames(subcloneres) = c("chr","startpos","endpos","BAF","pval","LogR","ntot",
+  colnames(subcloneres) = c("chr","startpos","endpos","BAF","pval","LogR","ntot","nMajor","nMinor",
                             "nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A","SDfrac_A","SDfrac_A_BS","frac1_A_0.025","frac1_A_0.975",
                             "nMaj1_B","nMin1_B","frac1_B","nMaj2_B","nMin2_B","frac2_B","SDfrac_B","SDfrac_B_BS","frac1_B_0.025","frac1_B_0.975",
                             "nMaj1_C","nMin1_C","frac1_C","nMaj2_C","nMin2_C","frac2_C","SDfrac_C","SDfrac_C_BS","frac1_C_0.025","frac1_C_0.975",
