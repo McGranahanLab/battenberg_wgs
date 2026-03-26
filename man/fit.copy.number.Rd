@@ -2,7 +2,7 @@
 % Please edit documentation in R/fitcopynumber.R
 \name{fit.copy.number}
 \alias{fit.copy.number}
-  itle{Fit copy number}
+\title{Fit copy number}
 \usage{
 fit.copy.number(
   samplename,

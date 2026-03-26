@@ -15,11 +15,10 @@ Rscript /src/integration_test/battenberg_wgs_smoke.R
 
 if not, make changes in the repository, and reinstall:
 
-removePackages('Battenberg')
-q()
+R -q -e "library(utils);remove.packages('Battenberg')"
 R CMD INSTALL /src
+Rscript /src/integration_test/battenberg_wgs_smoke.R
 
-R CMD INSTALL /src/oriols-dev-multi
 
 
 to skip expensive allele counter, set skip_allele_counting to True

@@ -2,7 +2,7 @@
 % Please edit documentation in R/battenberg.R
 \name{battenberg}
 \alias{battenberg}
-  itle{Run the Battenberg pipeline}
+\title{Run the Battenberg pipeline}
 \usage{
 battenberg(
   analysis = "paired",

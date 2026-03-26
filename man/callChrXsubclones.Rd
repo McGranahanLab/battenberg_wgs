@@ -2,7 +2,7 @@
 % Please edit documentation in R/fitcopynumber.R
 \name{callChrXsubclones}
 \alias{callChrXsubclones}
-  itle{Fit ChrX subclonal copy number (male only)}
+\title{Fit ChrX subclonal copy number (male only)}
 \usage{
 callChrXsubclones(
   tumourname,

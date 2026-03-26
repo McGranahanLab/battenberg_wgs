@@ -139,6 +139,7 @@ battenberg = function(analysis="paired",
   requireNamespace("doParallel")
   requireNamespace("parallel")
   requireNamespace("R.utils")
+  libs <- .libPaths()
   
   if (analysis == "cell_line"){
     calc_seg_baf_option=1
@@ -226,6 +227,7 @@ battenberg = function(analysis="paired",
         # Setup for parallel computing
         clp = parallel::makeCluster(nthreads,outfile="")
         doParallel::registerDoParallel(clp)
+        parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
         
         if (analysis == "paired"){
           
@@ -352,7 +354,6 @@ battenberg = function(analysis="paired",
       # mclapply(1:length(chrom_names), function(chrom) {
       if (analysis=="germline"){
         foreach::foreach (i=1:length(chrom_names)) %dopar% {
-          .libPaths(libs)
           chrom = chrom_names[i]
           print(chrom)
           
@@ -380,7 +381,6 @@ battenberg = function(analysis="paired",
         }
       } else {
         foreach::foreach (i=1:length(chrom_names)) %dopar% {
-          .libPaths(libs)
           chrom = chrom_names[i]
           print(chrom)      
           run_haplotyping(chrom=chrom,
@@ -418,7 +418,7 @@ battenberg = function(analysis="paired",
     }
 
     print('HERE22')
-    print(tumourname[sampleidx])
+    print(samplename[sampleidx])
     
     print('SEGMENTING BAF HERE')
 
@@ -452,16 +452,16 @@ battenberg = function(analysis="paired",
     multisamplehaplotypeprefix <- paste0(normalname, "_multisample_haplotypes_chr")
     
     
-    # Setup for parallel computing
-    clp = parallel::makeCluster(nthreads,outfile="")
-    doParallel::registerDoParallel(clp)
+      # Setup for parallel computing
+      clp = parallel::makeCluster(nthreads,outfile="")
+      doParallel::registerDoParallel(clp)
+      parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
     
     print(chrom_names)
     # Reconstruct haplotypes
     .libPaths()
     foreach::foreach (i=1:length(chrom_names)) %dopar% {
-      .libPaths(libs)
-    .libPaths()
+      .libPaths()
       chrom = chrom_names[i]
       print(chrom)
       
@@ -491,7 +491,6 @@ battenberg = function(analysis="paired",
       
       
       foreach::foreach (i=1:length(chrom_names)) %dopar% {
-        .libPaths(libs)
         chrom = chrom_names[i]
         print(chrom)
         
@@ -545,9 +544,9 @@ battenberg = function(analysis="paired",
   # Setup for parallel computing
   clp = parallel::makeCluster(min(nthreads, nsamples),outfile="")
   doParallel::registerDoParallel(clp)
+  parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
   # for (sampleidx in 1:nsamples) {
   foreach::foreach (sampleidx=1:nsamples) %dopar% {
-    .libPaths(libs)
     print(paste0("Fitting final copy number and calling subclones for sample ", samplename[sampleidx]))
     
     if (data_type=="wgs" | data_type=="WGS") {
@@ -626,10 +625,10 @@ battenberg = function(analysis="paired",
       # If patient is male, get copy number status of ChrX based only on logR segmentation (due to hemizygosity of SNPs)
       # Only do this when X chromosome is included
       if (ismale & "X" %in% chrom_names){
-        callChrXsubclones(TUMOURNAME=samplename[sampleidx],
+        callChrXsubclones(tumourname=samplename[sampleidx],
                           X_gamma=1000,
                           X_kmin=100,
-                          GENOMEBUILD=GENOMEBUILD,
+                          genomebuild=genomebuild,
                           AR=TRUE,
                           prior_breakpoints_file=prior_breakpoints_file,
 			                    chrom_names=chrom_names,
@@ -661,8 +660,6 @@ battenberg = function(analysis="paired",
                                  solution_type = solution_type)
 
 
-      parallel::stopCluster(clp)
-      
       # if (nsamples > 1) {
       #   print("Assessing mirrored subclonal allelic imbalance (MSAI)")
       #   call_multisample_MSAI(rdsprefix = multisamplehaplotypeprefix,
@@ -675,6 +672,7 @@ battenberg = function(analysis="paired",
       # }                           
     }
   }
+  parallel::stopCluster(clp)
 
   #KT: compress files 
   # list all text files
