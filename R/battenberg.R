@@ -67,6 +67,7 @@
 #' @param multisample_maxlag Maximal number of upstream SNPs used in the multisample haplotyping to inform the haplotype at another SNP (Default: 100)
 #' @param multisample_relative_weight_balanced Relative weight to give to haplotype info from a sample without allelic imbalance in the region (Default: 0.25)
 #' @param enhanced_grid_search Should use multi-start, parallelized and multi-approach grid search (Default: FALSE)
+#' @param cn_confidence_level Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)
 #' @author sd11, jdemeul, Naser Ansari-Pour, Julio Cesar Cortes Rios
 #' @export
 battenberg = function(analysis="paired",
@@ -97,6 +98,7 @@ battenberg = function(analysis="paired",
                       min_rho=0.1,
                       max_rho=1.0,
                       min_goodness=0.63,
+                      cn_confidence_level=0.95,
                       uninformative_BAF_threshold=0.51,
                       min_normal_depth=10,
                       min_base_qual=20,
@@ -620,6 +622,7 @@ battenberg = function(analysis="paired",
                     max_allowed_state=max_allowed_state, 
                     cn_upper_limit=cn_upper_limit, 
                     noperms=1000,
+                    cn_confidence_level=cn_confidence_level,
                     calc_seg_baf_option=calc_seg_baf_option)
       
       # If patient is male, get copy number status of ChrX based only on logR segmentation (due to hemizygosity of SNPs)

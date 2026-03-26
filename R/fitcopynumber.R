@@ -281,12 +281,13 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
 #' @param siglevel Threshold under which a p-value becomes significant. When it is significant a second copy number state will be fitted (Default 0.05)
 #' @param maxdist Slack in BAF space to allow a segment to be off it's optimum before becoming significant. A segment becomes significant very quickly when a breakpoint is missed, this parameter alleviates the effect (Default 0.01)
 #' @param noperms The number of permutations to be run when bootstrapping the confidence intervals on the copy number state of each segment (Default 1000)
+#' @param cn_confidence_level Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)
 #' @param seed Seed to set when performing bootstrapping (Default: Current time)
 #' @param calc_seg_baf_option Various options to recalculate the BAF of a segment. Options are: 1 - median, 2 - mean, 3 - ifelse median==0|1, mean, median. (Default: 3)
 #' @author dw9, sd11
 #' @export
 
-callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.file, output.file, output.figures.prefix, output.gw.figures.prefix, chr_names, masking_output_file, max_allowed_state=250, cn_upper_limit=1000, prior_breakpoints_file=NULL, gamma=1, segmentation.gamma=NA, siglevel=0.05, maxdist=0.01, noperms=1000, seed=as.integer(1), calc_seg_baf_option=3) {
+callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.file, output.file, output.figures.prefix, output.gw.figures.prefix, chr_names, masking_output_file, max_allowed_state=250, cn_upper_limit=1000, prior_breakpoints_file=NULL, gamma=1, segmentation.gamma=NA, siglevel=0.05, maxdist=0.01, noperms=1000, cn_confidence_level=0.95, seed=as.integer(1), calc_seg_baf_option=3) {
   
   set.seed(seed)
   # Load rho/psi/goodness of fit
@@ -333,15 +334,19 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   ################################################################################################
   # Determine copy number for each segment
   ################################################################################################
-  res = determine_copynumber(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms, cn_upper_limit)
+  res = determine_copynumber(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms, cn_upper_limit, cn_confidence_level=cn_confidence_level)
   subcloneres = res$subcloneres
   #write.table(subcloneres, gsub(".txt", "_1.txt", output.file), quote=F, col.names=T, row.names=F, sep="\t")
   write.table(subcloneres, paste0(tools::file_path_sans_ext(output.file),"_1.",tools::file_ext(output.file),sep=""), quote=F, col.names=T, row.names=F, sep="\t")  
+    # use this file to calculate other confidence levels post hoc:
+  if (!is.null(res$segment_bootstraps)) {
+    write.table(res$segment_bootstraps, sub("\\.txt$", "_1_copy_number_bootstraps.txt", output.file), quote=F, col.names=T, row.names=F, sep="\t")
+  }
   # Scan the segments for cases that should be merged
   res = merge_segments(subcloneres, BAFvals, LogRvals, rho, psi, gamma, calc_seg_baf_option)
   BAFvals = res$bafsegmented
   
-  res = determine_copynumber(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms, cn_upper_limit)
+  res = determine_copynumber(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms, cn_upper_limit, cn_confidence_level=cn_confidence_level)
   subcloneres = res$subcloneres
   BAFpvals = res$BAFpvals
   
@@ -364,7 +369,10 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
 
   #write.table(subcloneres, gsub(".txt","_extended.txt",output.file), quote=F, col.names=T, row.names=F, sep="\t")
   write.table(subcloneres, paste0(tools::file_path_sans_ext(output.file),"_extended.",tools::file_ext(output.file),sep=""), quote=F, col.names=T, row.names=F, sep="\t")
-
+    # use this file to calculate other confidence levels post hoc:
+  if (!is.null(res$segment_bootstraps)) {
+    write.table(res$segment_bootstraps, sub("\\.txt$", "_copy_number_bootstraps.txt", output.file), quote=F, col.names=T, row.names=F, sep="\t")
+  }
   # NAP - November 2023
   # Recalculate PGA.is.clonal to match the final copy number profile in copynumber.txt file (previously subclones.txt file)
   subcloneres$length = subcloneres$endpos-subcloneres$startpos
@@ -481,10 +489,108 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
 #' @param siglevel Level at which a segment can become significantly different from the nearest clonal state
 #' @param noperms Number of bootstrap permutations
 #' @param cn_upper_limit Maximum number of CN that can be called
-#' @return A data.frame with copy number determined for each segment
+#' @param cn_confidence_level Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)
+#' @return A list containing the segment-level copy number calls, BAF p-values and optional bootstrap draws for nMajor and nMinor
 #' @author dw9
 #' @noRd
-determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms, cn_upper_limit) {
+
+copy_number_ci_enabled = function(confidence_level) {
+  if (isFALSE(confidence_level)) {
+    return(FALSE)
+  }
+  if (is.null(confidence_level)) {
+    return(FALSE)
+  }
+  if (length(confidence_level) == 1 && is.na(confidence_level)) {
+    return(FALSE)
+  }
+  if (is.numeric(confidence_level) && length(confidence_level) == 1 && confidence_level == 0) {
+    return(FALSE)
+  }
+  return(TRUE)
+}
+
+#' Calculate a percentile bootstrap interval
+#' @noRd
+calculate_bootstrap_interval = function(values, confidence_level) {
+  if (!copy_number_ci_enabled(confidence_level)) {
+    return(c(lower=NA_real_, upper=NA_real_))
+  }
+  alpha = (1 - confidence_level) / 2
+  interval = stats::quantile(values, probs=c(alpha, 1 - alpha), na.rm=TRUE, names=FALSE)
+  names(interval) = c("lower", "upper")
+  return(interval)
+}
+
+#' Bootstrap continuous nMajor and nMinor estimates for a segment
+#' @noRd
+bootstrap_segment_copynumber = function(BAFke, segment_logr, rho, psi, gamma, noperms, default_l, default_LogR) {
+  valid_baf = BAFke[!is.na(BAFke)]
+  valid_logr = segment_logr[!is.na(segment_logr) & !is.infinite(segment_logr)]
+  if (length(valid_baf) == 0) {
+    valid_baf = default_l
+  }
+  if (length(valid_logr) == 0) {
+    valid_logr = default_LogR
+  }
+  boot_nMajor = vector(length=noperms, mode="numeric")
+  boot_nMinor = vector(length=noperms, mode="numeric")
+  for (j in seq_len(noperms)) {
+    permBAF = valid_baf[sample.int(length(valid_baf), length(valid_baf), replace=TRUE)]
+    permLogR = valid_logr[sample.int(length(valid_logr), length(valid_logr), replace=TRUE)]
+    boot_l = mean(permBAF, na.rm=TRUE)
+    if (is.na(boot_l)) {
+      boot_l = default_l
+    }
+    boot_l = max(boot_l, 1 - boot_l)
+    boot_LogR = mean(permLogR, na.rm=TRUE)
+    if (is.na(boot_LogR)) {
+      boot_LogR = default_LogR
+    }
+    boot_nMajor[j] = (rho - 1 + boot_l * psi * 2^(boot_LogR / gamma)) / rho
+    boot_nMinor[j] = (rho - 1 + (1 - boot_l) * psi * 2^(boot_LogR / gamma)) / rho
+    if (boot_nMinor[j] < 0) {
+      if (boot_l == 1) {
+        boot_nMajor[j] = 1000
+      } else {
+        boot_nMajor[j] = boot_nMajor[j] + boot_l * (0.01 - boot_nMinor[j]) / (1 - boot_l)
+      }
+      boot_nMinor[j] = 0.01
+    }
+  }
+  return(data.frame(bootstrap_iteration=seq_len(noperms), nMajor=boot_nMajor, nMinor=boot_nMinor))
+}
+
+#' Validate copy-number CI configuration
+#' @noRd
+validate_copy_number_confidence_level = function(confidence_level) {
+  if (!copy_number_ci_enabled(confidence_level)) {
+    return(FALSE)
+  }
+  if (!is.numeric(confidence_level)) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  if (length(confidence_level) != 1) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  if (is.na(confidence_level)) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  if (confidence_level <= 0) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  if (confidence_level >= 1) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  return(as.numeric(confidence_level))
+}
+
+determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms, cn_upper_limit, cn_confidence_level=0.95) {
+  cn_confidence_level = validate_copy_number_confidence_level(cn_confidence_level)
+  calculate_cn_ci = copy_number_ci_enabled(cn_confidence_level)
+  if (calculate_cn_ci && noperms < 1) {
+    stop("noperms must be at least 1 when cn_confidence_level is enabled")
+  }
   BAFphased = BAFvals[,4]
   BAFseg = BAFvals[,5]
   BAFpos = as.vector(ctrans[as.vector(BAFvals[,1])]*1000000000+BAFvals[,2])
@@ -497,6 +603,7 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
   pval = NULL
   BAFpvals = vector(length=length(BAFseg))
   subcloneres = NULL
+  segment_bootstraps = NULL
   
   for (i in 1:length(BAFlevels)) {
     # subcloneres = rbind(subcloneres, fit_segment(BAFpos, LogRpos, BAFlevels, BAFphased, LogRvals, switchpoints, rho, psi, gamma, i))
@@ -514,7 +621,8 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
     #chrom = names(ctrans[floor(startpos/1000000000)])
     # Assuming all SNPs in this segment are on the same chromosome
     chrom = BAFvals[(switchpoints[i]+1):switchpoints[i+1],]$Chromosome[1]
-    LogR = mean(LogRvals[LogRpos>=startpos&LogRpos<=endpos & !is.infinite(LogRvals[,3]),3],na.rm=T)
+    segment_logr = LogRvals[LogRpos>=startpos&LogRpos<=endpos & !is.infinite(LogRvals[,3]),3]
+    LogR = mean(segment_logr,na.rm=T)
     
     # if we don't have a value for LogR, fill in 0
     if (is.na(LogR)) {
@@ -539,6 +647,23 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
       nMinor = 0.01
     }
     
+        # calculate bootstrapped CIs:
+    nMajor_ci = c(lower=NA_real_, upper=NA_real_)
+    nMinor_ci = c(lower=NA_real_, upper=NA_real_)
+    if (calculate_cn_ci) {
+      bootstrapped_cn = bootstrap_segment_copynumber(BAFke, segment_logr, rho, psi, gamma, noperms, l, LogR)
+      nMajor_ci = calculate_bootstrap_interval(bootstrapped_cn$nMajor, cn_confidence_level)
+      nMinor_ci = calculate_bootstrap_interval(bootstrapped_cn$nMinor, cn_confidence_level)
+      bootstrapped_cn$segment_id = i
+      bootstrapped_cn$chr = chrom
+      bootstrapped_cn$startpos = startpos - floor(startpos/1000000000) * 1000000000
+      bootstrapped_cn$endpos = endpos - floor(endpos/1000000000) * 1000000000
+      bootstrapped_cn$BAF = l
+      bootstrapped_cn$LogR = LogR
+      bootstrapped_cn = bootstrapped_cn[,c("segment_id","chr","startpos","endpos","BAF","LogR","bootstrap_iteration","nMajor","nMinor")]
+      segment_bootstraps = rbind(segment_bootstraps, bootstrapped_cn)
+    }
+
     # Note that these are sorted in the order of ascending BAF:
     nMaj = c(floor(nMajor), ceiling(nMajor), floor(nMajor), ceiling(nMajor))
     nMin = c(ceiling(nMinor), ceiling(nMinor), floor(nMinor), floor(nMinor))
@@ -617,6 +742,7 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
       
       subcloneres = rbind(subcloneres, c(chrom,startpos-floor(startpos/1000000000)*1000000000,
                                          endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,nMajor,nMinor,
+                                         nMajor_ci["lower"],nMajor_ci["upper"],nMinor_ci["lower"],nMinor_ci["upper"],
                                          nMaj1[1],nMin1[1],tau[1],nMaj2[1],nMin2[1],1-tau[1],sdtau[1],sdtaubootstrap[1],tau25[1],tau975[1],
                                          nMaj1[2],nMin1[2],tau[2],nMaj2[2],nMin2[2],1-tau[2],sdtau[2],sdtaubootstrap[2],tau25[2],tau975[2],
                                          nMaj1[3],nMin1[3],tau[3],nMaj2[3],nMin2[3],1-tau[3],sdtau[3],sdtaubootstrap[3],tau25[3],tau975[3],
@@ -627,11 +753,13 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
       #if called as clonal, use the best corner from the nearest edge
       subcloneres = rbind(subcloneres, c(chrom,startpos-floor(startpos/1000000000)*1000000000,
                                          endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,nMajor,nMinor,
+                                         nMajor_ci["lower"],nMajor_ci["upper"],nMinor_ci["lower"],nMinor_ci["upper"],
                                          nMaj.test[whichclosestlevel.test],nMin.test[whichclosestlevel.test],1,rep(NA,57)))
       
     }
   }
   colnames(subcloneres) = c("chr","startpos","endpos","BAF","pval","LogR","ntot","nMajor","nMinor",
+                            "nMajor_ci_lower","nMajor_ci_upper","nMinor_ci_lower","nMinor_ci_upper",
                             "nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A","SDfrac_A","SDfrac_A_BS","frac1_A_0.025","frac1_A_0.975",
                             "nMaj1_B","nMin1_B","frac1_B","nMaj2_B","nMin2_B","frac2_B","SDfrac_B","SDfrac_B_BS","frac1_B_0.025","frac1_B_0.975",
                             "nMaj1_C","nMin1_C","frac1_C","nMaj2_C","nMin2_C","frac2_C","SDfrac_C","SDfrac_C_BS","frac1_C_0.025","frac1_C_0.975",
@@ -642,7 +770,14 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
   for (i in 2:ncol(subcloneres)) {
     subcloneres[,i] = as.numeric(as.character(subcloneres[,i]))
   }
-  return(list(subcloneres=subcloneres, BAFpvals=BAFpvals))
+    if (!is.null(segment_bootstraps)) {
+    segment_bootstraps = as.data.frame(segment_bootstraps)
+    numeric_bootstrap_columns = setdiff(colnames(segment_bootstraps), c("chr"))
+    for (column in numeric_bootstrap_columns) {
+      segment_bootstraps[,column] = as.numeric(as.character(segment_bootstraps[,column]))
+    }
+  }
+  return(list(subcloneres=subcloneres, BAFpvals=BAFpvals, segment_bootstraps=segment_bootstraps))
 }
 
 
@@ -1393,6 +1528,12 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
     }
   }
   outputDF=outputDF[order(outputDF$startpos),]
+
+  # Non-PAR chrX calling is based on a simplified LogR-only model, so we do not have the
+  # same bootstrap machinery as the autosomal BAF/LogR path. Use a fixed +/- 0.25 interval
+  # around the inferred subclonal copy number as a simple heuristic CI for chrX outputs.
+  outputDF$subclonalCN_ci_lower = pmax(outputDF$subclonalCN - 0.25, 0)
+  outputDF$subclonalCN_ci_upper = outputDF$subclonalCN + 0.25
   
   print(paste("Number of rows merged =",nrow(SUBCLONESout)-nrow(outputDF)))
   
@@ -1456,7 +1597,9 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   dev.off()
   
   # update outputDF (chrX-only copynumber output file)
-  outputDF=outputDF[,c(1:6,11:17)]
+  outputDF=outputDF[,c("chrom", "arm", "startpos", "endpos", "nSNPs", "LogR",
+                       "nMaj1", "nMin1", "frac1", "nMaj2", "nMin2", "frac2",
+                       "subclonalCN", "subclonalCN_ci_lower", "subclonalCN_ci_upper")]
   write.table(outputDF,paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_chrX_copynumber.txt"),col.names = T,row.names = F,quote = F,sep="\t")
   
   # Update the genomewide Battenberg plots
