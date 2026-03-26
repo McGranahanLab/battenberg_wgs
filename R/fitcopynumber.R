@@ -1223,10 +1223,11 @@ make_posthoc_plots = function(samplename, logr_file, subclones_file, rho_psi_fil
 #' @param AR Should the segment carrying the androgen receptor (AR) locus to be visually distinguished in average plot? (Default TRUE)
 #' @param prior_breakpoints_file A two column text file with prior genome-wide breakpoints, possibly from structural variants. This file must contain two columns with headers "chr" and "pos" representing chromosome and position.
 #' @param chrom_names A vector containing the names of chromosomes to be included in the final genome-wide Battenberg copy number plot with chrX
+#' @param seed Seed to use for deterministic random sampling in the chrX plotting helper (Default: 1)
 #' @author naser.ansari-pour
 #' @export
 
-callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=TRUE,prior_breakpoints_file=NULL,chrom_names,data_type="wgs", RHO, PSI, solution_type){
+callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=TRUE,prior_breakpoints_file=NULL,chrom_names,data_type="wgs", RHO, PSI, solution_type, seed=as.integer(1)){
   
   print(tumourname)
   
@@ -1623,6 +1624,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   chrX_BAFvals_length = round(nrow(BAFvals)*0.05,0)
   print(paste("chrX BAFvals length =",chrX_BAFvals_length))
   
+  set.seed(seed)
   
   BAFvals=rbind(BAFvals[which(is.na(match(BAFvals$Chromosome,c("X","chrX")))),],
                 data.frame(Chromosome="X",Position=sort(sample(1:155e6,chrX_BAFvals_length,replace=F)), # 155e6: approximate length of chrX

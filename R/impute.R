@@ -36,7 +36,7 @@ run.impute = function(inputfile, outputfile.prefix, is.male, imputeinfofile, imp
                   " -Ne 20000", # Authors of impute2 mention that this parameter works best on all population types, thus hardcoded.
                   " -o ", outputfile.prefix, "_", boundaries[b]/1000, "K_", boundaries[b+1]/1000, "K.txt",
                   " -phase",
-                  " -seed ",
+                  " -seed ", seed,
                   " -os 2", sep="") # lowers computational cost by not imputing reference only SNPs
       EXIT_CODE=system(cmd, wait=T)
       stopifnot(EXIT_CODE==0)
@@ -306,6 +306,7 @@ run.beagle5 = function(beaglejar,
 #' @param beaglewindow Integer size of the genomic window for beagle5 (cM) Default:40
 #' @param beagleoverlap Integer size of the overlap between windows beagle5 Default:4
 #' @param javajre Path to the Java JRE executable (default java, i.e. in $PATH)
+#' @param seed Seed to pass through to impute2 when phasing with IMPUTE2 (Default: 1)
 #' @author sd11, maxime.tarabichi, jdemeul
 #' @export
 run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile, problemloci, impute_exe, min_normal_depth, chrom_names, 
@@ -320,7 +321,8 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
                            beaglenthreads=1,
                            beaglewindow=40,
                            beagleoverlap=4,
-			   javajre="java")
+				   javajre="java",
+                           seed=as.integer(1))
 {
   
   previoushaplotypefile <- list.files(pattern = paste0("_impute_output_chr", chrom, "_allHaplotypeInfo.txt"))[1]
@@ -411,7 +413,8 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
                  imputeinfofile=imputeinfofile,
                  impute.exe=impute_exe,
                  region.size=5000000,
-                 chrom=chrom)
+                 chrom=chrom,
+                 seed=seed)
       
       # As impute runs in windows across a chromosome we need to assemble the output
       combine.impute.output(inputfile.prefix=paste(tumourname, "_impute_output_chr", chrom, ".txt", sep=""),
@@ -512,6 +515,7 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
 #' @param beaglewindow Integer size of the genomic window for beagle5 (cM) Default:40
 #' @param beagleoverlap Integer size of the overlap between windows beagle5 Default:4
 #' @param javajre Path to the Java JRE executable (default java, i.e. in $PATH)
+#' @param seed Seed to pass through to impute2 when phasing with IMPUTE2 (Default: 1)
 #' @author sd11, maxime.tarabichi, jdemeul, Naser Ansari-Pour (BDI, Oxford)
 #' @export
 
@@ -527,7 +531,8 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
                            beaglenthreads=1,
                            beaglewindow=40,
                            beagleoverlap=4,
-                           javajre="java")
+                           javajre="java",
+                           seed=as.integer(1))
 {
   
   previoushaplotypefile <- list.files(pattern = paste0("_impute_output_chr", chrom, "_allHaplotypeInfo.txt"))[1]
@@ -610,7 +615,8 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
                  imputeinfofile=imputeinfofile,
                  impute.exe=impute_exe,
                  region.size=5000000,
-                 chrom=chrom)
+                 chrom=chrom,
+                 seed=seed)
       
       # As impute runs in windows across a chromosome we need to assemble the output
       combine.impute.output(inputfile.prefix=paste(germlinename, "_impute_output_chr", chrom, ".txt", sep=""),

@@ -405,10 +405,11 @@ gc.correct.wgs = function(Tumour_LogR_file, outfile, correlations_outfile, gc_co
 #' @param nthreads The number of paralel processes to run
 #' @param skip_allele_counting Flag, set to TRUE if allele counting is already complete (files are expected in the working directory on disk)
 #' @param skip_allele_counting_normal Flag, set to TRUE from the second sample onwards for multisample case (Default: FALSE)
+#' @param seed Seed to set for deterministic allele randomisation in BAF generation (Default: 1)
 #' @author sd11
 #' @export
 prepare_wgs = function(chrom_names, tumourbam, normalbam, tumourname, normalname, g1000allelesprefix, g1000prefix, gccorrectprefix,
-                       repliccorrectprefix, min_base_qual, min_map_qual, allelecounter_exe, min_normal_depth, nthreads, skip_allele_counting, skip_allele_counting_normal = F) {
+                       repliccorrectprefix, min_base_qual, min_map_qual, allelecounter_exe, min_normal_depth, nthreads, skip_allele_counting, skip_allele_counting_normal = F, seed=as.integer(1)) {
 
   requireNamespace("foreach")
   requireNamespace("doParallel")
@@ -451,7 +452,8 @@ prepare_wgs = function(chrom_names, tumourbam, normalbam, tumourname, normalname
                   chr_names=chrom_names,
                   g1000file.prefix=g1000allelesprefix,
                   minCounts=min_normal_depth,
-                  samplename=tumourname)
+                  samplename=tumourname,
+                  seed=seed)
   # Perform GC correction
   gc.correct.wgs(Tumour_LogR_file=paste(tumourname,"_mutantLogR.tab", sep=""),
                  outfile=paste(tumourname,"_mutantLogR_gcCorrected.tab", sep=""),

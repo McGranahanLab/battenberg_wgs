@@ -251,7 +251,8 @@ battenberg = function(analysis="paired",
                       min_normal_depth=min_normal_depth,
                       nthreads=nthreads,
                       skip_allele_counting=skip_allele_counting[sampleidx],
-                      skip_allele_counting_normal = (sampleidx > 1))
+                      skip_allele_counting_normal = (sampleidx > 1),
+                      seed=seed)
           
         } else if (analysis == "cell_line") {
           prepare_wgs_cell_line(chrom_names=chrom_names,
@@ -379,7 +380,8 @@ battenberg = function(analysis="paired",
                                    beaglemaxmem=beaglemaxmem,
                                    beaglenthreads=beaglenthreads,
                                    beaglewindow=beaglewindow,
-                                   beagleoverlap=beagleoverlap)      
+                                   beagleoverlap=beagleoverlap,
+                                   seed=seed)      
         }
       } else {
         foreach::foreach (i=1:length(chrom_names)) %dopar% {
@@ -405,7 +407,8 @@ battenberg = function(analysis="paired",
                           beaglewindow=beaglewindow,
                           beagleoverlap=beagleoverlap,
                           externalhaplotypeprefix=externalhaplotypeprefix,
-                          use_previous_imputation=(sampleidx > 1))
+                          use_previous_imputation=(sampleidx > 1),
+                          seed=seed)
         }
       }
       
@@ -623,6 +626,7 @@ battenberg = function(analysis="paired",
                     cn_upper_limit=cn_upper_limit, 
                     noperms=1000,
                     cn_confidence_level=cn_confidence_level,
+                    seed=seed,
                     calc_seg_baf_option=calc_seg_baf_option)
       
       # If patient is male, get copy number status of ChrX based only on logR segmentation (due to hemizygosity of SNPs)
@@ -638,7 +642,8 @@ battenberg = function(analysis="paired",
                           data_type=data_type,
                           RHO = rho,
                           PSI = psi,
-                          solution_type = solution_type)
+                          solution_type = solution_type,
+                          seed=seed)
       }
       
       # Make some post-hoc plots
