@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
     curl \
+    default-jre-headless \
     gfortran \
     git \
     libbz2-dev \
@@ -74,9 +75,5 @@ RUN mkdir -p /opt/battenberg
 COPY . /opt/battenberg/
 
 RUN R CMD INSTALL /opt/battenberg
-
-RUN chmod +x /opt/battenberg/integration_test/run_official_wgs_test.sh
-
-WORKDIR /work
 
 CMD ["/bin/bash"]
