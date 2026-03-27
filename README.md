@@ -1,3 +1,45 @@
+# WGS modifications
+
+Code ported from https://github.com/oriolpich/battenberg. The original ('https://github.com/oriolpich/battenberg') was few commits behind its origin ('https://github.com/Wedge-lab/battenberg') and had a fes new commits. This version merged both branches and adds new features. 
+
+
+Tthe following changes have been added:
+
+1. Expose the seed and set default seeds to 1 rather than previous 'system time' to ensure reproducibility.
+2. Major and Minor fractional copy numbers added to the output. Original verison outputs only the sum of these components in ntot columns.
+3. Subsetting by column names and not indecies (only in fitcopynumer.R)
+4. Calculate confidence intervals for fractional copy numbers
+
+Detail description of reconciliation procedure:
+
+1. Merge Oriol's dev-mlti with master
+```bash
+git clone <https://github.com/oriolpich/battenberg.git>
+git merge dev-multi
+``` 
+
+```
+git remote set-url origin <https://github.com/McGranahanLab/battenberg_wgs.git>
+git push
+fetch original BB as a new branch:
+git switch -c bb_wedge
+git remote add bb_main <https://github.com/Wedge-lab/battenberg>
+git fetch bb_main
+git merge --allow-unrelated-histories bb_main/master
+
+# conflict resolution
+# tests
+git checkout master
+git merge bb_wedge
+```
+Conflict resolution
+
+
+
+
+
+(added by P.Pawlik)
+
 # Battenberg
 
 This repository contains code for the whole genome sequencing subclonal copy number caller Battenberg, as described in [Nik-Zainal, Van Loo, Wedge, et al. (2012), Cell](https://www.ncbi.nlm.nih.gov/pubmed/22608083).

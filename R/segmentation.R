@@ -532,8 +532,32 @@ segment.baf.phased.multisample = function(samplename, inputfile, outputfile, pri
     if (nrow(BAFrawchrseg) < 50) {
       BAFsegm = matrix(data = colMeans(BAFrawchrseg[,-c(1:2)]), nrow = nrow(BAFrawchrseg), ncol = ncol(BAFrawchrseg)-2, byrow = T)
     } else {
-      res = copynumber::multipcf(data = copynumber::winsorize(data = BAFrawchrseg, assembly = GENOMEBUILD),
-                                 Y = BAFrawchrseg, fast = T, gamma = gamma*sdev, return.est = T, normalize = F, assembly = GENOMEBUILD)
+      wins_data <- copynumber::winsorize(data = BAFrawchrseg, assembly = GENOMEBUILD)
+      res = tryCatch({
+        copynumber::multipcf(data = wins_data,
+                             Y = BAFrawchrseg, fast = T, gamma = gamma*sdev, return.est = T, normalize = F, assembly = GENOMEBUILD)
+      }, error = function(err) {
+        err_msg <- conditionMessage(err)
+        if (grepl("subscript out of bounds", err_msg, fixed = TRUE)) {
+          chr_label <- "unknown"
+          if ("Chromosome" %in% colnames(BAFrawchrseg) && nrow(BAFrawchrseg) > 0) {
+            chr_label <- as.character(BAFrawchrseg$Chromosome[1])
+          }
+          sample_data <- BAFrawchrseg[, -c(1:2), drop = FALSE]
+          non_missing <- colSums(!is.na(sample_data))
+          sample_var <- apply(sample_data, 2, function(x) var(x, na.rm = TRUE))
+          warning(paste0(
+            "Potential multipcf edge case detected for chromosome ", chr_label,
+            ". This often happens when one chromosome arm has too few informative loci or a degenerate BAF profile after filtering/winsorization. ",
+            "Rows in presegment=", nrow(BAFrawchrseg),
+            "; samples=", ncol(sample_data),
+            "; non-missing per sample=[", paste(names(non_missing), non_missing, sep = ":", collapse = ", "), "]",
+            "; variance per sample=[", paste(names(sample_var), signif(sample_var, 4), sep = ":", collapse = ", "), "]",
+            ". Original error: ", err_msg
+          ))
+        }
+        stop(err)
+      })
       BAFsegm = res$estimates[,-c(1:2)]
     }
     
