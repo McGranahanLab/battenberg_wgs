@@ -266,7 +266,6 @@ run.beagle5 = function(beaglejar,
 {
     cmd <- paste0(javajre,
 		  " -Xmx",maxheap.gb,"g",
-		  " -Xms", maxheap.gb, "g",
 		  " -XX:+UseParallelOldGC",
                   " -jar ",beaglejar,
                   " gt=",vcfpath,
@@ -369,7 +368,8 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
       outbeagle_path <- paste(tumourname,"_beagle5_output_chr",chrom,".txt",sep="")
       writevcf.beagle(vcfbeagle, filepath=vcfbeagle_path)
 
-      tryCatch({ 
+      beagle_ok <- TRUE
+      tryCatch({
         ## Run beagle5 on the files
         run.beagle5(beaglejar=beaglejar,
                     vcfpath=vcfbeagle_path,
@@ -381,10 +381,12 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
                     window=beaglewindow,
                     overlap=beagleoverlap,
                     javajre=javajre)
-        
       }, error = function(err) {
-        print(paste("default beaglewindow ran into an error, using window = 60 instead. Original error: ", err))
-      }, finally = {
+        beagle_ok <<- FALSE
+        print(paste("default beaglewindow ran into an error, retrying with window = 60. Original error:", err))
+      })
+
+      if (!beagle_ok) {
         run.beagle5(beaglejar=beaglejar,
                     vcfpath=vcfbeagle_path,
                     reffile=beagleref,
@@ -395,8 +397,7 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
                     window=60,
                     overlap=beagleoverlap,
                     javajre=javajre)
-        }
-      )
+      }
       outfile <- paste(tumourname,
                        "_impute_output_chr",
                        chrom, "_allHaplotypeInfo.txt", sep="")
@@ -569,10 +570,10 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
       vcfbeagle_path <- paste(germlinename,"_beagle5_input_chr",chrom,".txt",sep="")
       outbeagle_path <- paste(germlinename,"_beagle5_output_chr",chrom,".txt",sep="")
       writevcf.beagle(vcfbeagle, filepath=vcfbeagle_path)
-      
-      ## Run beagle5 on the files
-      tryCatch({ 
-          ## Run beagle5 on the files
+
+      beagle_ok <- TRUE
+      tryCatch({
+        ## Run beagle5 on the files
         run.beagle5(beaglejar=beaglejar,
                     vcfpath=vcfbeagle_path,
                     reffile=beagleref,
@@ -583,10 +584,12 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
                     window=beaglewindow,
                     overlap=beagleoverlap,
                     javajre=javajre)
-          
       }, error = function(err) {
-        print(paste("default beaglewindow ran into an error, using window = 60 instead. Original error: ", err))
-      }, finally = {
+        beagle_ok <<- FALSE
+        print(paste("default beaglewindow ran into an error, retrying with window = 60. Original error:", err))
+      })
+
+      if (!beagle_ok) {
         run.beagle5(beaglejar=beaglejar,
                     vcfpath=vcfbeagle_path,
                     reffile=beagleref,
@@ -597,8 +600,7 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
                     window=60,
                     overlap=beagleoverlap,
                     javajre=javajre)
-        }
-      )
+      }
       outfile <- paste(germlinename,
                        "_impute_output_chr",
                        chrom, "_allHaplotypeInfo.txt", sep="")
