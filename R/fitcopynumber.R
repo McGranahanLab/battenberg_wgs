@@ -185,22 +185,38 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   # and also run over manual QC TRACERx421 WES solutions
   # add the PURPLE and External WES solutions to the alternative solution path
   
+  purple_solution <- NULL
+  wes_solution <- NULL
+
   if(!is.null(PURPLE_purity_path)){
-    purple_solution <- read.table(PURPLE_purity_path, head = T, sep = "\t")
-    purple_solution <- purple_solution[, c("purity", "ploidy")]
-    colnames(purple_solution) <- c("rho", "psi")
-    purple_solution$solution_type <- "purpleDefault"
+    purple_tmp <- read.table(PURPLE_purity_path, head = T, sep = "\t")
+    if (nrow(purple_tmp) > 0) {
+      purple_tmp <- purple_tmp[, c("purity", "ploidy"), drop = FALSE]
+      colnames(purple_tmp) <- c("rho", "psi")
+      purple_tmp$solution_type <- "purpleDefault"
+      purple_solution <- purple_tmp
+    } else {
+      warning(paste0(
+        "No rows found in PURPLE purity file. ",
+        "Expected sample '", samplename, "' in file '", PURPLE_purity_path, "'. ",
+        "Continuing without PURPLE default solution."
+      ))
+    }
   }
 
   if(!is.null(External_WES_purity_path)){
-  wes_solution <- read.table(External_WES_purity_path, head = T, sep = "\t")
-  wes_solution <- wes_solution[wes_solution$region == samplename, ]
-  wes_solution <- wes_solution[, c("Ploidy", "ACF")]
-  colnames(wes_solution) <- c("psi", "rho")
-  wes_solution$solution_type <- "WESmanualQC"
-  
-    if(is.null(PURPLE_purity_path)){
-      purple_solution <- wes_solution
+    wes_tmp <- read.table(External_WES_purity_path, head = T, sep = "\t")
+    wes_tmp <- wes_tmp[wes_tmp$region == samplename, , drop = FALSE]
+    if (nrow(wes_tmp) > 0) {
+      wes_tmp <- wes_tmp[, c("Ploidy", "ACF"), drop = FALSE]
+      colnames(wes_tmp) <- c("psi", "rho")
+      wes_tmp$solution_type <- "WESmanualQC"
+      wes_solution <- wes_tmp
+    } else {
+      warning(paste0(
+        "No matching rows for sample '", samplename, "' in External WES purity file '", External_WES_purity_path, "'. ",
+        "Continuing without WES manual QC solution."
+      ))
     }
   }
   
@@ -213,10 +229,18 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   alternative_solutions_df <- data.frame(ascat_optimum_pair$alternative_solutions)
   alternative_solutions_df <- data.frame(psi = alternative_solutions_df$psi_ploidy, rho = alternative_solutions_df$rho_aberrant_cell_fraction, solution_type = "battenbergAlternative")
   
-  if(all(!is.null(PURPLE_purity_path), !is.null(External_WES_purity_path))){
-    purple_solution <- rbind(purple_solution, wes_solution)
-    all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df, purple_solution)
-  }else{
+  extra_solutions <- NULL
+  if (!is.null(purple_solution) && !is.null(wes_solution)) {
+    extra_solutions <- rbind(purple_solution, wes_solution)
+  } else if (!is.null(purple_solution)) {
+    extra_solutions <- purple_solution
+  } else if (!is.null(wes_solution)) {
+    extra_solutions <- wes_solution
+  }
+
+  if (!is.null(extra_solutions)) {
+    all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df, extra_solutions)
+  } else {
     all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df)
   }
     
