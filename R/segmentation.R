@@ -518,47 +518,96 @@ segment.baf.phased.multisample = function(samplename, inputfile, outputfile, pri
     # BAF = BAFrawchr[row.indices,2:ncol(BAFrawchr)]
     # pos = BAFrawchr[row.indices,1]
     
-    sdevs <- unlist(apply(X = BAFrawchrseg[,-c(1:2)], MARGIN = 2, FUN = function(x) getMad(ifelse(x<0.5,x,1-x), k=25)))
-    # sdev <- getMad(ifelse(BAF<0.5,BAF,1-BAF),k=25)
-    # Standard deviation is not defined for a single value
-    sdevs[is.na(sdevs)] <- 0
-    #DCW 250314
-    #for cell lines, sdev goes to zero in regions of LOH, which causes problems.
-    #0.09 is around the value expected for a binomial distribution around 0.5 with depth 30
-    sdevs[sdevs < 0.09] <- 0.09
-    sdev <- mean(sdevs)
+    # split each chromosome into p/q arms using assembly-specific centromere boundaries
+    # and apply the <50 fallback per arm to avoid sparse-arm multipcf failures.
+    get_centromere_mid <- function(genomebuild) {
+      gb <- tolower(genomebuild)
+      if (gb == "hg19") {
+        cen <- c(
+          "1"=123035434, "2"=93826171, "3"=92004854, "4"=51160117, "5"=47905641,
+          "6"=60330166, "7"=59554331, "8"=45338887, "9"=48867679, "10"=40754935,
+          "11"=53144205, "12"=36356694, "13"=17500000, "14"=17500000, "15"=18500000,
+          "16"=36835801, "17"=23763006, "18"=16960898, "19"=26181782, "20"=27869569,
+          "21"=12788129, "22"=14500000, "23"=60132012
+        )
+      } else {
+        # default to hg38 coordinates
+        cen <- c(
+          "1"=123605523, "2"=93139351, "3"=92214016, "4"=50726026, "5"=48272854,
+          "6"=59191911, "7"=59498944, "8"=44955505, "9"=44377363, "10"=40640088,
+          "11"=52751711, "12"=35977330, "13"=17025624, "14"=17086762, "15"=18362627,
+          "16"=37295920, "17"=24849830, "18"=18161053, "19"=25844927, "20"=28237290,
+          "21"=11890184, "22"=14004553, "23"=60509061
+        )
+      }
+      return(cen)
+    }
+
+    normalize_chr <- function(chr) {
+      chr <- as.character(chr)
+      chr <- gsub("^chr", "", chr, ignore.case = TRUE)
+      chr[chr %in% c("X", "x")] <- "23"
+      chr[chr %in% c("Y", "y")] <- "24"
+      return(chr)
+    }
+
+    cen_mid <- get_centromere_mid(GENOMEBUILD)
+    chr_norm <- normalize_chr(BAFrawchrseg$Chromosome)
+    split_pos <- unname(cen_mid[chr_norm])
+    # if chromosome is not in the lookup (e.g. chrY), treat as one arm
+    arm_label <- ifelse(!is.na(split_pos) & BAFrawchrseg$Position <= split_pos, "p", "q")
     
     print(paste0("BAFlen=",nrow(BAFrawchrseg)))
-    if (nrow(BAFrawchrseg) < 50) {
-      BAFsegm = matrix(data = colMeans(BAFrawchrseg[,-c(1:2)]), nrow = nrow(BAFrawchrseg), ncol = ncol(BAFrawchrseg)-2, byrow = T)
-    } else {
-      wins_data <- copynumber::winsorize(data = BAFrawchrseg, assembly = GENOMEBUILD)
-      res = tryCatch({
-        copynumber::multipcf(data = wins_data,
-                             Y = BAFrawchrseg, fast = T, gamma = gamma*sdev, return.est = T, normalize = F, assembly = GENOMEBUILD)
-      }, error = function(err) {
-        err_msg <- conditionMessage(err)
-        if (grepl("subscript out of bounds", err_msg, fixed = TRUE)) {
-          chr_label <- "unknown"
-          if ("Chromosome" %in% colnames(BAFrawchrseg) && nrow(BAFrawchrseg) > 0) {
-            chr_label <- as.character(BAFrawchrseg$Chromosome[1])
+    BAFsegm <- matrix(NA_real_, nrow = nrow(BAFrawchrseg), ncol = ncol(BAFrawchrseg)-2)
+    colnames(BAFsegm) <- colnames(BAFrawchrseg)[-c(1:2)]
+
+    for (arm in c("p", "q")) {
+      arm_idx <- which(arm_label == arm)
+      if (length(arm_idx) == 0) {
+        next
+      }
+
+      BAFrawchrseg_arm <- BAFrawchrseg[arm_idx, , drop = FALSE]
+      sdevs <- unlist(apply(X = BAFrawchrseg_arm[,-c(1:2)], MARGIN = 2, FUN = function(x) getMad(ifelse(x<0.5,x,1-x), k=25)))
+      sdevs[is.na(sdevs)] <- 0
+      sdevs[sdevs < 0.09] <- 0.09
+      sdev <- mean(sdevs)
+
+      if (nrow(BAFrawchrseg_arm) < 50) {
+        BAFsegm[arm_idx, ] <- matrix(data = colMeans(BAFrawchrseg_arm[,-c(1:2)]),
+                                     nrow = nrow(BAFrawchrseg_arm),
+                                     ncol = ncol(BAFrawchrseg_arm)-2,
+                                     byrow = TRUE)
+      } else {
+        wins_data <- copynumber::winsorize(data = BAFrawchrseg_arm, assembly = GENOMEBUILD)
+        res = tryCatch({
+          copynumber::multipcf(data = wins_data,
+                               Y = BAFrawchrseg_arm, fast = T, gamma = gamma*sdev, return.est = T, normalize = F, assembly = GENOMEBUILD)
+        }, error = function(err) {
+          err_msg <- conditionMessage(err)
+          if (grepl("subscript out of bounds", err_msg, fixed = TRUE)) {
+            chr_label <- "unknown"
+            if ("Chromosome" %in% colnames(BAFrawchrseg_arm) && nrow(BAFrawchrseg_arm) > 0) {
+              chr_label <- as.character(BAFrawchrseg_arm$Chromosome[1])
+            }
+            sample_data <- BAFrawchrseg_arm[, -c(1:2), drop = FALSE]
+            non_missing <- colSums(!is.na(sample_data))
+            sample_var <- apply(sample_data, 2, function(x) var(x, na.rm = TRUE))
+            warning(paste0(
+              "Potential multipcf edge case detected for chromosome ", chr_label,
+              " arm ", arm,
+              ". This often happens when one chromosome arm has too few informative loci or a degenerate BAF profile after filtering/winsorization. ",
+              "Rows in arm segment=", nrow(BAFrawchrseg_arm),
+              "; samples=", ncol(sample_data),
+              "; non-missing per sample=[", paste(names(non_missing), non_missing, sep = ":", collapse = ", "), "]",
+              "; variance per sample=[", paste(names(sample_var), signif(sample_var, 4), sep = ":", collapse = ", "), "]",
+              ". Original error: ", err_msg
+            ))
           }
-          sample_data <- BAFrawchrseg[, -c(1:2), drop = FALSE]
-          non_missing <- colSums(!is.na(sample_data))
-          sample_var <- apply(sample_data, 2, function(x) var(x, na.rm = TRUE))
-          warning(paste0(
-            "Potential multipcf edge case detected for chromosome ", chr_label,
-            ". This often happens when one chromosome arm has too few informative loci or a degenerate BAF profile after filtering/winsorization. ",
-            "Rows in presegment=", nrow(BAFrawchrseg),
-            "; samples=", ncol(sample_data),
-            "; non-missing per sample=[", paste(names(non_missing), non_missing, sep = ":", collapse = ", "), "]",
-            "; variance per sample=[", paste(names(sample_var), signif(sample_var, 4), sep = ":", collapse = ", "), "]",
-            ". Original error: ", err_msg
-          ))
-        }
-        stop(err)
-      })
-      BAFsegm = res$estimates[,-c(1:2)]
+          stop(err)
+        })
+        BAFsegm[arm_idx, ] <- as.matrix(res$estimates[,-c(1:2)])
+      }
     }
     
     print('LSOSLSLS')
