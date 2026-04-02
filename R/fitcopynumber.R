@@ -311,10 +311,13 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
 #' @param cn_confidence_level Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)
 #' @param seed Seed to set when performing bootstrapping (Default: Current time)
 #' @param calc_seg_baf_option Various options to recalculate the BAF of a segment. Options are: 1 - median, 2 - mean, 3 - ifelse median==0|1, mean, median. (Default: 3)
+#' @param RHO Optional rho value used in solution-specific output naming (Default: NA)
+#' @param PSI Optional psi value used in solution-specific output naming (Default: NA)
+#' @param solution_type Optional solution label used in solution-specific output naming (Default: NULL)
 #' @author dw9, sd11
 #' @export
 
-callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.file, output.file, output.figures.prefix, output.gw.figures.prefix, chr_names, masking_output_file, max_allowed_state=250, cn_upper_limit=1000, prior_breakpoints_file=NULL, gamma=1, segmentation.gamma=NA, siglevel=0.05, maxdist=0.01, noperms=1000, cn_confidence_level=0.95, seed=as.integer(1), calc_seg_baf_option=3) {
+callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.file, output.file, output.figures.prefix, output.gw.figures.prefix, chr_names, masking_output_file, max_allowed_state=250, cn_upper_limit=1000, prior_breakpoints_file=NULL, gamma=1, segmentation.gamma=NA, siglevel=0.05, maxdist=0.01, noperms=1000, cn_confidence_level=0.95, seed=as.integer(1), calc_seg_baf_option=3, RHO=NA, PSI=NA, solution_type=NULL) {
   
   set.seed(seed)
   # Load rho/psi/goodness of fit
@@ -496,10 +499,17 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   # Create user friendly cellularity and ploidy output file
   cellularity_ploidy_output = data.frame(purity = c(rho), ploidy = c(ploidy), psi = c(psit))
 
-  # cellularity_file = gsub("_.+\\.txt$", "_purity_ploidy.txt", output.file) # NAP: updated the name of the output file, consistent with new title (and added flexibility with what output.file is named)
-  cellularity_file = paste0(sample.name,"_purity_ploidy.txt") 
+  cellularity_file_legacy = paste0(sample.name, "_purity_ploidy.txt")
+  cellularity_file_informative = NULL
+  if (!is.null(solution_type) && length(solution_type) == 1 && !is.na(solution_type) &&
+      !is.na(PSI) && !is.na(RHO)) {
+    cellularity_file_informative = paste0(sample.name, "_", solution_type, "_psi", PSI, "_rho", RHO, "_purity_ploidy.txt")
+  }
 
-  write.table(cellularity_ploidy_output, cellularity_file, quote=F, sep="\t", row.names=F)
+  if (!is.null(cellularity_file_informative)) {
+    write.table(cellularity_ploidy_output, cellularity_file_informative, quote=F, sep="\t", row.names=F)
+  }
+  write.table(cellularity_ploidy_output, cellularity_file_legacy, quote=F, sep="\t", row.names=F)
 }
 
 
