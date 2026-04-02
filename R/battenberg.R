@@ -142,6 +142,41 @@ battenberg = function(analysis="paired",
   requireNamespace("parallel")
   requireNamespace("R.utils")
   libs <- .libPaths()
+
+  pipeline_start_time <- Sys.time()
+  format_duration <- function(seconds) {
+    if (is.null(seconds) || is.na(seconds)) {
+      return("NA")
+    }
+    secs <- as.integer(round(seconds))
+    hh <- secs %/% 3600
+    mm <- (secs %% 3600) %/% 60
+    ss <- secs %% 60
+    sprintf("%02d:%02d:%02d", hh, mm, ss)
+  }
+  emit_stage_event <- function(stage, status, stage_start = NULL, extra_info = "") {
+    now <- Sys.time()
+    total_elapsed <- as.numeric(difftime(now, pipeline_start_time, units = "secs"))
+    stage_elapsed <- if (is.null(stage_start)) NA_real_ else as.numeric(difftime(now, stage_start, units = "secs"))
+    token <- paste0("BATTENBERG_STAGE_", toupper(status), ":", toupper(stage))
+    msg <- paste0(
+      "[", format(now, "%Y-%m-%d %H:%M:%S %Z"), "] ",
+      token,
+      " stage=", stage,
+      " status=", status,
+      " stage_elapsed=", format_duration(stage_elapsed),
+      " total_elapsed=", format_duration(total_elapsed),
+      if (nchar(extra_info) > 0) paste0(" ", extra_info) else ""
+    )
+    cat(msg, "\n")
+  }
+
+  emit_stage_event(
+    stage = "pipeline",
+    status = "start",
+    stage_start = pipeline_start_time,
+    extra_info = paste0("samples=", length(samplename), " analysis=", analysis, " data_type=", data_type)
+  )
   
   if (analysis == "cell_line"){
     calc_seg_baf_option=1
@@ -223,6 +258,18 @@ battenberg = function(analysis="paired",
   }
   print(chrom_names) 
   print(nsamples)
+
+  preprocessing_stage_start <- Sys.time()
+  phasing_stage_start <- Sys.time()
+  single_seg_stage_start <- Sys.time()
+
+  preprocessing_target <- sum(!skip_preprocessing)
+  preprocessing_done <- 0
+  phasing_target <- sum(!skip_phasing)
+  phasing_done <- 0
+  single_seg_target <- nsamples
+  single_seg_done <- 0
+
   for (sampleidx in 1:nsamples) {
     if (!skip_preprocessing[sampleidx]) {
       if (data_type=="wgs" | data_type=="WGS") {
@@ -320,6 +367,7 @@ battenberg = function(analysis="paired",
         print("Unknown data type provided, please provide wgs or snp6")
         q(save="no", status=1)
       }
+      preprocessing_done <- preprocessing_done + 1
     }
     
     if (data_type=="snp6" | data_type=="SNP6") {
@@ -420,6 +468,7 @@ battenberg = function(analysis="paired",
                         inputfile.postfix="_heterozygousMutBAFs_haplotyped.txt",
                         outputfile=paste(samplename[sampleidx], "_heterozygousMutBAFs_haplotyped.txt", sep=""),
                         chr_names=chrom_names)
+      phasing_done <- phasing_done + 1
     }
 
     print('HERE22')
@@ -437,6 +486,7 @@ battenberg = function(analysis="paired",
                        kmin=segmentation_kmin,
                        phasekmin=phasing_kmin,
                        calc_seg_baf_option=calc_seg_baf_option)
+              single_seg_done <- single_seg_done + 1
     
     if (nsamples > 1 ) {
       # Write the Battenberg phasing information to disk as a vcf
@@ -450,8 +500,50 @@ battenberg = function(analysis="paired",
     }
     
   }
+
+  if (preprocessing_target > 0 && preprocessing_done == preprocessing_target) {
+    emit_stage_event(
+      stage = "preprocessing",
+      status = "complete",
+      stage_start = preprocessing_stage_start,
+      extra_info = paste0("samples_completed=", preprocessing_done, "/", preprocessing_target)
+    )
+  } else if (preprocessing_target == 0) {
+    emit_stage_event(
+      stage = "preprocessing",
+      status = "skipped",
+      stage_start = preprocessing_stage_start,
+      extra_info = "samples_completed=0/0"
+    )
+  }
+
+  if (phasing_target > 0 && phasing_done == phasing_target) {
+    emit_stage_event(
+      stage = "phasing",
+      status = "complete",
+      stage_start = phasing_stage_start,
+      extra_info = paste0("samples_completed=", phasing_done, "/", phasing_target)
+    )
+  } else if (phasing_target == 0) {
+    emit_stage_event(
+      stage = "phasing",
+      status = "skipped",
+      stage_start = phasing_stage_start,
+      extra_info = "samples_completed=0/0"
+    )
+  }
+
+  if (single_seg_done == single_seg_target) {
+    emit_stage_event(
+      stage = "single_sample_segmentation",
+      status = "complete",
+      stage_start = single_seg_stage_start,
+      extra_info = paste0("samples_completed=", single_seg_done, "/", single_seg_target)
+    )
+  }
   
   # if this is a multisample run, combine the battenberg phasing outputs, incorporate it and resegment
+  multisample_stage_start <- Sys.time()
   if (nsamples > 1) {
     print("Constructing multisample phasing")
     multisamplehaplotypeprefix <- paste0(normalname, "_multisample_haplotypes_chr")
@@ -543,10 +635,25 @@ battenberg = function(analysis="paired",
                                    gamma=segmentation_gamma_multisample,
                                    calc_seg_baf_option=calc_seg_baf_option,
                                    GENOMEBUILD=genomebuild)
+
+    emit_stage_event(
+      stage = "multisample_rephasing_segmentation",
+      status = "complete",
+      stage_start = multisample_stage_start,
+      extra_info = paste0("samples_completed=", nsamples, "/", nsamples)
+    )
+  } else {
+    emit_stage_event(
+      stage = "multisample_rephasing_segmentation",
+      status = "skipped",
+      stage_start = multisample_stage_start,
+      extra_info = "samples_completed=0/0"
+    )
     
   }
   
   # Setup for parallel computing
+  final_fit_stage_start <- Sys.time()
   clp = parallel::makeCluster(min(nthreads, nsamples),outfile="")
   doParallel::registerDoParallel(clp)
   parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
@@ -682,7 +789,15 @@ battenberg = function(analysis="paired",
   }
   parallel::stopCluster(clp)
 
+  emit_stage_event(
+    stage = "final_fit_and_subclones",
+    status = "complete",
+    stage_start = final_fit_stage_start,
+    extra_info = paste0("samples_completed=", nsamples, "/", nsamples)
+  )
+
   #KT: compress files 
+  compression_stage_start <- Sys.time()
   # list all text files
   all_text_files <- list.files(pattern = ".txt$")
 
@@ -724,4 +839,20 @@ battenberg = function(analysis="paired",
 
     }
   }
+
+  emit_stage_event(
+    stage = "compression",
+    status = "complete",
+    stage_start = compression_stage_start,
+    extra_info = paste0("txt_files=", length(all_text_files),
+                        " tab_files=", length(all_tab_files),
+                        " log_files=", length(all_log_files))
+  )
+
+  emit_stage_event(
+    stage = "pipeline",
+    status = "complete",
+    stage_start = pipeline_start_time,
+    extra_info = paste0("samples_completed=", nsamples, "/", nsamples)
+  )
 }
