@@ -515,6 +515,20 @@ segment.baf.phased.multisample = function(samplename, inputfile, outputfile, pri
                           BAFrawchr$Position <= presegment_chrom_end)
     
     BAFrawchrseg <- BAFrawchr[row.indices,]
+
+    if (nrow(BAFrawchrseg) == 0) {
+      outlist <- lapply(X = 1:(ncol(BAFrawchr)-2),
+                        FUN = function(x) {
+                          data.frame(BAFrawchrseg[, 1:2, drop = FALSE],
+                                     BAF = numeric(0),
+                                     BAFphased = numeric(0),
+                                     BAFseg = numeric(0),
+                                     tempBAFsegm = numeric(0),
+                                     stringsAsFactors = FALSE)
+                        })
+      names(outlist) <- colnames(BAFrawchr)[-c(1,2)]
+      return(outlist)
+    }
     # BAF = BAFrawchr[row.indices,2:ncol(BAFrawchr)]
     # pos = BAFrawchr[row.indices,1]
     
@@ -585,28 +599,33 @@ segment.baf.phased.multisample = function(samplename, inputfile, outputfile, pri
                                Y = BAFrawchrseg_arm, fast = T, gamma = gamma*sdev, return.est = T, normalize = F, assembly = GENOMEBUILD)
         }, error = function(err) {
           err_msg <- conditionMessage(err)
-          if (grepl("subscript out of bounds", err_msg, fixed = TRUE)) {
-            chr_label <- "unknown"
-            if ("Chromosome" %in% colnames(BAFrawchrseg_arm) && nrow(BAFrawchrseg_arm) > 0) {
-              chr_label <- as.character(BAFrawchrseg_arm$Chromosome[1])
-            }
-            sample_data <- BAFrawchrseg_arm[, -c(1:2), drop = FALSE]
-            non_missing <- colSums(!is.na(sample_data))
-            sample_var <- apply(sample_data, 2, function(x) var(x, na.rm = TRUE))
-            warning(paste0(
-              "Potential multipcf edge case detected for chromosome ", chr_label,
-              " arm ", arm,
-              ". This often happens when one chromosome arm has too few informative loci or a degenerate BAF profile after filtering/winsorization. ",
-              "Rows in arm segment=", nrow(BAFrawchrseg_arm),
-              "; samples=", ncol(sample_data),
-              "; non-missing per sample=[", paste(names(non_missing), non_missing, sep = ":", collapse = ", "), "]",
-              "; variance per sample=[", paste(names(sample_var), signif(sample_var, 4), sep = ":", collapse = ", "), "]",
-              ". Original error: ", err_msg
-            ))
+          chr_label <- "unknown"
+          if ("Chromosome" %in% colnames(BAFrawchrseg_arm) && nrow(BAFrawchrseg_arm) > 0) {
+            chr_label <- as.character(BAFrawchrseg_arm$Chromosome[1])
           }
-          stop(err)
+          sample_data <- BAFrawchrseg_arm[, -c(1:2), drop = FALSE]
+          non_missing <- colSums(!is.na(sample_data))
+          sample_var <- apply(sample_data, 2, function(x) var(x, na.rm = TRUE))
+          warning(paste0(
+            "multipcf failed for chromosome ", chr_label,
+            " arm ", arm,
+            ". Falling back to arm-wise mean segmentation for this arm. ",
+            "Rows in arm segment=", nrow(BAFrawchrseg_arm),
+            "; samples=", ncol(sample_data),
+            "; non-missing per sample=[", paste(names(non_missing), non_missing, sep = ":", collapse = ", "), "]",
+            "; variance per sample=[", paste(names(sample_var), signif(sample_var, 4), sep = ":", collapse = ", "), "]",
+            ". Original error: ", err_msg
+          ))
+          NULL
         })
-        BAFsegm[arm_idx, ] <- as.matrix(res$estimates[,-c(1:2)])
+        if (is.null(res)) {
+          BAFsegm[arm_idx, ] <- matrix(data = colMeans(BAFrawchrseg_arm[,-c(1:2)]),
+                                       nrow = nrow(BAFrawchrseg_arm),
+                                       ncol = ncol(BAFrawchrseg_arm)-2,
+                                       byrow = TRUE)
+        } else {
+          BAFsegm[arm_idx, ] <- as.matrix(res$estimates[,-c(1:2)])
+        }
       }
     }
     
