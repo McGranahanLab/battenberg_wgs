@@ -177,7 +177,85 @@ battenberg = function(analysis="paired",
     stage_start = pipeline_start_time,
     extra_info = paste0("samples=", length(samplename), " analysis=", analysis, " data_type=", data_type)
   )
-  
+
+  # Write a run-parameters log at the very start so failed runs can be inspected
+  run_log_file <- paste0(samplename[1], "_battenberg_run_params.log")
+  run_log_lines <- c(
+    paste0("# Battenberg run parameters"),
+    paste0("# Written: ", format(pipeline_start_time, "%Y-%m-%d %H:%M:%S %Z")),
+    paste0("# Working directory: ", getwd()),
+    paste0("# R version: ", R.version$version.string),
+    paste0("# Platform: ", R.version$platform),
+    "",
+    paste0("analysis = ", analysis),
+    paste0("samplename = ", paste(samplename, collapse=", ")),
+    paste0("normalname = ", paste(normalname, collapse=", ")),
+    paste0("sample_data_file = ", paste(sample_data_file, collapse=", ")),
+    paste0("normal_data_file = ", paste(normal_data_file, collapse=", ")),
+    paste0("imputeinfofile = ", imputeinfofile),
+    paste0("g1000prefix = ", g1000prefix),
+    paste0("g1000allelesprefix = ", paste(g1000allelesprefix, collapse=", ")),
+    paste0("problemloci = ", problemloci),
+    paste0("gccorrectprefix = ", if (is.null(gccorrectprefix)) "NULL" else gccorrectprefix),
+    paste0("repliccorrectprefix = ", if (is.null(repliccorrectprefix)) "NULL" else repliccorrectprefix),
+    paste0("ismale = ", ismale),
+    paste0("data_type = ", data_type),
+    paste0("genomebuild = ", genomebuild),
+    paste0("impute_exe = ", impute_exe),
+    paste0("allelecounter_exe = ", allelecounter_exe),
+    paste0("nthreads = ", nthreads),
+    paste0("seed = ", seed),
+    paste0("platform_gamma = ", platform_gamma),
+    paste0("phasing_gamma = ", phasing_gamma),
+    paste0("segmentation_gamma = ", segmentation_gamma),
+    paste0("segmentation_kmin = ", segmentation_kmin),
+    paste0("phasing_kmin = ", phasing_kmin),
+    paste0("clonality_dist_metric = ", clonality_dist_metric),
+    paste0("ascat_dist_metric = ", ascat_dist_metric),
+    paste0("min_ploidy = ", min_ploidy),
+    paste0("max_ploidy = ", max_ploidy),
+    paste0("min_rho = ", min_rho),
+    paste0("max_rho = ", max_rho),
+    paste0("min_goodness = ", min_goodness),
+    paste0("cn_confidence_level = ", cn_confidence_level),
+    paste0("uninformative_BAF_threshold = ", uninformative_BAF_threshold),
+    paste0("min_normal_depth = ", min_normal_depth),
+    paste0("min_base_qual = ", min_base_qual),
+    paste0("min_map_qual = ", min_map_qual),
+    paste0("max_allowed_state = ", max_allowed_state),
+    paste0("cn_upper_limit = ", cn_upper_limit),
+    paste0("calc_seg_baf_option = ", calc_seg_baf_option),
+    paste0("skip_allele_counting = ", paste(skip_allele_counting, collapse=", ")),
+    paste0("skip_preprocessing = ", paste(skip_preprocessing, collapse=", ")),
+    paste0("skip_phasing = ", paste(skip_phasing, collapse=", ")),
+    paste0("externalhaplotypefile = ", paste(externalhaplotypefile, collapse=", ")),
+    paste0("usebeagle = ", usebeagle),
+    paste0("beaglejar = ", if (is.na(beaglejar)) "NA" else beaglejar),
+    paste0("beagleref.template = ", if (is.na(beagleref.template)) "NA" else beagleref.template),
+    paste0("beagleplink.template = ", if (is.na(beagleplink.template)) "NA" else beagleplink.template),
+    paste0("beaglemaxmem = ", beaglemaxmem),
+    paste0("beaglenthreads = ", beaglenthreads),
+    paste0("beaglewindow = ", beaglewindow),
+    paste0("beagleoverlap = ", beagleoverlap),
+    paste0("javajre = ", javajre),
+    paste0("write_battenberg_phasing = ", write_battenberg_phasing),
+    paste0("multisample_relative_weight_balanced = ", multisample_relative_weight_balanced),
+    paste0("multisample_maxlag = ", multisample_maxlag),
+    paste0("segmentation_gamma_multisample = ", segmentation_gamma_multisample),
+    paste0("snp6_reference_info_file = ", if (is.na(snp6_reference_info_file)) "NA" else snp6_reference_info_file),
+    paste0("apt.probeset.genotype.exe = ", apt.probeset.genotype.exe),
+    paste0("apt.probeset.summarize.exe = ", apt.probeset.summarize.exe),
+    paste0("norm.geno.clust.exe = ", norm.geno.clust.exe),
+    paste0("birdseed_report_file = ", birdseed_report_file),
+    paste0("heterozygousFilter = ", heterozygousFilter),
+    paste0("prior_breakpoints_file = ", if (is.null(prior_breakpoints_file)) "NULL" else prior_breakpoints_file),
+    paste0("chrom_coord_file = ", if (is.null(chrom_coord_file)) "NULL" else chrom_coord_file),
+    paste0("enhanced_grid_search = ", enhanced_grid_search),
+    paste0("purple_path = ", if (is.null(purple_path)) "NULL" else purple_path),
+    paste0("WES_solutions = ", if (is.null(WES_solutions)) "NULL" else WES_solutions)
+  )
+  writeLines(run_log_lines, con=run_log_file)
+
   if (analysis == "cell_line"){
     calc_seg_baf_option=1
     phasing_gamma=1
@@ -733,7 +811,10 @@ battenberg = function(analysis="paired",
                     noperms=1000,
                     cn_confidence_level=cn_confidence_level,
                     seed=seed,
-                    calc_seg_baf_option=calc_seg_baf_option)
+                    calc_seg_baf_option=calc_seg_baf_option,
+                    RHO=rho,
+                    PSI=psi,
+                    solution_type=solution_type)
       
       # If patient is male, get copy number status of ChrX based only on logR segmentation (due to hemizygosity of SNPs)
       # Only do this when X chromosome is included
