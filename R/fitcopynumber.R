@@ -206,6 +206,9 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
 
   if(!is.null(External_WES_purity_path)){
     wes_tmp <- read.table(External_WES_purity_path, head = T, sep = "\t")
+    # saniteze sample name. Assume hashes are always separated by double dash:
+    samplename_sanitized <- gsub("--.*", "", samplename)
+    wes_tmp <- wes_tmp[wes_tmp$region == samplename_sanitized, , drop = FALSE]
     wes_tmp <- wes_tmp[wes_tmp$region == samplename, , drop = FALSE]
     if (nrow(wes_tmp) > 0) {
       wes_tmp <- wes_tmp[, c("Ploidy", "ACF"), drop = FALSE]
