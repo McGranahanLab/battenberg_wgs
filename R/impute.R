@@ -335,7 +335,7 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
     
   } else {
     
-    if (file.exists(paste(tumourname, "_alleleFrequencies_chr", chrom, ".txt", sep=""))) {
+    if (file.exists.or.gz(paste(tumourname, "_alleleFrequencies_chr", chrom, ".txt", sep=""))) {
       generate.impute.input.wgs(chrom=chrom,
                                 tumour.allele.counts.file=paste(tumourname,"_alleleFrequencies_chr", chrom, ".txt", sep=""),
                                 normal.allele.counts.file=paste(normalname,"_alleleFrequencies_chr", chrom, ".txt", sep=""),
@@ -434,9 +434,10 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
   # If an allele counts file exists we assume this is a WGS sample and run the corresponding step, otherwise it must be SNP6
   allelefrequenciesfile <- paste0(tumourname, "_alleleFrequencies_chr", chrom, ".txt")
   print(allelefrequenciesfile)
-  print(file.exists(allelefrequenciesfile))
+  print(file.exists.or.gz(allelefrequenciesfile))
   
-  if (file.exists(allelefrequenciesfile)) {
+  if (file.exists.or.gz(allelefrequenciesfile)) {
+    allelefrequenciesfile <- resolve_input_file(allelefrequenciesfile)
     # WGS - Transform the impute output into haplotyped BAFs
     
     # if present, input external haplotype blocks
@@ -467,7 +468,7 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
     }
     
     GetChromosomeBAFs(chrom=chrom,
-                      SNP_file=paste(tumourname, "_alleleFrequencies_chr", chrom, ".txt", sep=""),
+                      SNP_file=allelefrequenciesfile,
                       haplotypeFile=paste(tumourname, "_impute_output_chr", chrom, "_allHaplotypeInfo.txt", sep=""),
                       samplename=tumourname,
                       outfile=paste(tumourname, "_chr", chrom, "_heterozygousMutBAFs_haplotyped.txt", sep=""),
@@ -547,7 +548,7 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
     
   } else {
     
-    if (file.exists(paste(germlinename, "_alleleFrequencies_chr", chrom, ".txt", sep=""))) {
+    if (file.exists.or.gz(paste(germlinename, "_alleleFrequencies_chr", chrom, ".txt", sep=""))) {
       generate.impute.input.wgs.germline(chrom=chrom,
                                 germline.allele.counts.file=paste(germlinename,"_alleleFrequencies_chr", chrom, ".txt", sep=""),
                                 normal.allele.counts.file=paste(normalname,"_alleleFrequencies_chr", chrom, ".txt", sep=""),
@@ -637,9 +638,10 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
   # If an allele counts file exists we assume this is a WGS sample and run the corresponding step, otherwise it must be SNP6
   allelefrequenciesfile <- paste0(germlinename, "_alleleFrequencies_chr", chrom, ".txt")
   print(allelefrequenciesfile)
-  print(file.exists(allelefrequenciesfile))
+  print(file.exists.or.gz(allelefrequenciesfile))
   
-  if (file.exists(allelefrequenciesfile)) {
+  if (file.exists.or.gz(allelefrequenciesfile)) {
+    allelefrequenciesfile <- resolve_input_file(allelefrequenciesfile)
     # WGS - Transform the impute output into haplotyped BAFs
     
     # if present, input external haplotype blocks
@@ -670,7 +672,7 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
     }
     
     GetChromosomeBAFs(chrom=chrom,
-                      SNP_file=paste(germlinename, "_alleleFrequencies_chr", chrom, ".txt", sep=""),
+                      SNP_file=allelefrequenciesfile,
                       haplotypeFile=paste(germlinename, "_impute_output_chr", chrom, "_allHaplotypeInfo.txt", sep=""),
                       samplename=germlinename,
                       outfile=paste(germlinename, "_chr", chrom, "_heterozygousMutBAFs_haplotyped.txt", sep=""),

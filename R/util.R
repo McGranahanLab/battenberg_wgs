@@ -1,6 +1,31 @@
 ########################################################################################
 # Generic table reader
 ########################################################################################
+#' Resolve an input file path, preferring the provided path and falling back to .gz
+#' @param filename Filename to resolve
+#' @return Existing path (plain or .gz), or the original filename if neither exists
+#' @noRd
+resolve_input_file = function(filename) {
+  if (file.exists(filename)) {
+    return(filename)
+  }
+  if (!grepl("\\.gz$", filename)) {
+    gz_filename = paste0(filename, ".gz")
+    if (file.exists(gz_filename)) {
+      return(gz_filename)
+    }
+  }
+  return(filename)
+}
+
+#' Check whether a file exists either as plain text or gzipped
+#' @param filename Filename to check
+#' @return Boolean
+#' @noRd
+file.exists.or.gz = function(filename) {
+  file.exists(resolve_input_file(filename))
+}
+
 #' Generic reading function using the readr R package, tailored for reading in genomic data
 #' @param file Filename of the file to read in
 #' @param header Whether the file contains a header (Default: TRUE)
@@ -13,6 +38,7 @@
 #' @export
 read_table_generic = function(file, header=T, row.names=F, stringsAsFactor=F, sep="\t", chrom_col=1, skip=0) {
   # stringsAsFactor is not needed here, but kept for legacy purposes
+  file = resolve_input_file(file)
   
   # Read in first line to obtain the header
   d = readr::read_delim(file=file, delim=sep, col_names=header, n_max=1, skip=skip, col_types = readr::cols())
@@ -41,6 +67,7 @@ read_table_generic = function(file, header=T, row.names=F, stringsAsFactor=F, se
 #' @param header Whether the file contains a header (Default: TRUE)
 #' @return A data frame with logR content
 read_logr = function(filename, header=T) {
+  filename = resolve_input_file(filename)
   #return(readr::read_tsv(file = filename, col_names = header, col_types = "cin"))
   return(readr::read_delim(file = filename, delim = NULL, col_names = header, col_types = "cin"))
 }
@@ -50,6 +77,7 @@ read_logr = function(filename, header=T) {
 #' @param header Whether the file contains a header (Default: TRUE)
 #' @return A data frame with BAF content
 read_baf = function(filename, header=T) {
+  filename = resolve_input_file(filename)
   #return(readr::read_tsv(file = filename, col_names = header, col_types = "cin"))
   return(readr::read_delim(file = filename, delim = NULL, col_names = header, col_types = "cin"))
 }
@@ -58,6 +86,7 @@ read_baf = function(filename, header=T) {
 #' @param filename Filename of the file to read in
 #' @return A data frame with GC content
 read_gccontent = function(filename) {
+  filename = resolve_input_file(filename)
   #return(readr::read_tsv(file=filename, skip = 1, col_names = F, col_types = "-cinnnnnnnnnnnn------"))
   return(readr::read_delim(file=filename, skip = 1, delim = NULL, col_names = F, col_types = "-cinnnnnnnnnnnn------"))
 }
@@ -66,6 +95,7 @@ read_gccontent = function(filename) {
 #' @param filename Filename of the file to read in
 #' @return A data frame with replication timing
 read_replication = function(filename) {
+  filename = resolve_input_file(filename)
   #return(readr::read_tsv(file=filename, col_types = paste0("ci", paste0(rep("n", 15), collapse = ""))))
   return(readr::read_delim(file=filename, delim = NULL, col_types = paste0("ci", paste0(rep("n", 15), collapse = ""))))
 }
@@ -75,6 +105,7 @@ read_replication = function(filename) {
 #' @param header Whether the file contains a header (Default: TRUE)
 #' @return A data frame with BAFsegmented content
 read_bafsegmented = function(filename, header=T) {
+  filename = resolve_input_file(filename)
   #return(readr::read_tsv(file = filename, col_names = header, col_types = "cinnn"))
   return(readr::read_delim(file = filename, delim = NULL, col_names = header, col_types = "cinnn"))
 }
@@ -83,6 +114,7 @@ read_bafsegmented = function(filename, header=T) {
 #' @param filename Filename of the file to read in
 #' @return A data frame with the imputed genotype output
 read_imputed_output = function(filename) {
+  filename = resolve_input_file(filename)
   #return(readr::read_tsv(file = filename, col_names = c("snpidx", "rsidx", "pos", "ref", "alt", "hap1", "hap2"), col_types = "cciccii"))
   return(readr::read_delim(file = filename, delim = NULL, col_names = c("snpidx", "rsidx", "pos", "ref", "alt", "hap1", "hap2"), col_types = "cciccii"))
 }
@@ -91,6 +123,7 @@ read_imputed_output = function(filename) {
 #' @param filename Filename of the file to read in
 #' @return A data frame with the alleleCounter output
 read_alleleFrequencies = function(filename) {
+  filename = resolve_input_file(filename)
   #return(readr::read_tsv(file = filename, col_names = c("CHR", "POS", "Count_A", "Count_C", "Count_G", "Count_T", "Good_depth"), col_types = "ciiiiii", comment = "#"))
   return(readr::read_delim(file = filename, delim = NULL, col_names = c("CHR", "POS", "Count_A", "Count_C", "Count_G", "Count_T", "Good_depth"), col_types = "ciiiiii", comment = "#"))
 }
@@ -99,6 +132,7 @@ read_alleleFrequencies = function(filename) {
 #' @param filename Filename of the file to read in
 #' @return A data frame with the input for impute
 read_impute_input = function(filename) {
+  filename = resolve_input_file(filename)
   #return(readr::read_delim(file = filename, col_names = F, col_types = "ccicciii", delim = " "))
   return(readr::read_delim(file = filename, col_names = F, col_types = "ccicciii", delim = NULL))
 }
@@ -107,6 +141,7 @@ read_impute_input = function(filename) {
 #' @param filename Filename of the file to read in
 #' @return A data frame with the beagle5 output
 read_beagle_output = function(filename) {
+  filename = resolve_input_file(filename)
   #return(readr::read_tsv(file = filename, col_names = c("#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMP001"), col_types = "cicccccccc", comment = "#"))
   return(readr::read_delim(file = filename, delim = NULL, col_names = c("#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMP001"), col_types = "cicccccccc", comment = "#"))
 }
@@ -353,8 +388,9 @@ cnfit_to_refit_suggestions = function(samplename, subclones_file, rho_psi_file, 
 #' Check if a file exists, if it doesn't, exit non-clean
 #' @noRd
 assert.file.exists = function(filename) {
-  if (!file.exists(filename)) {
-    warning(paste("Supplied file does not exist: ", filename, sep=""))
+  resolved_filename = resolve_input_file(filename)
+  if (!file.exists(resolved_filename)) {
+    warning(paste("Supplied file does not exist (checked plain and .gz): ", filename, sep=""))
     quit(save="no", status=1)
   }
 }

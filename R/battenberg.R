@@ -471,7 +471,6 @@ battenberg = function(analysis="paired",
       phasing_done <- phasing_done + 1
     }
 
-    print('HERE22')
     print(samplename[sampleidx])
     
     print('SEGMENTING BAF HERE')
