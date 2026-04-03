@@ -383,6 +383,44 @@ cnfit_to_refit_suggestions = function(samplename, subclones_file, rho_psi_file, 
 }
 
 ########################################################################################
+# Parallel Computing Utilities
+########################################################################################
+#' Setup a cluster for parallel computing with optional debugging
+#' 
+#' This function creates a cluster and optionally enables worker output logging and verbose mode.
+#' When debug_parallel=TRUE, worker output is written to a timestamped log file for easier
+#' error diagnosis in parallel loops.
+#' 
+#' @param nthreads Number of threads/workers (Default: 1)
+#' @param libs Library paths to propagate to workers (Default: NULL, skips clusterCall)
+#' @param enable_debug Boolean to enable worker output logging (Default: FALSE)
+#' @return A list with elements: cluster (the cluster object) and worker_log (log file path or "")
+#' @noRd
+setup_cluster_for_debugging = function(nthreads, libs=NULL, enable_debug=FALSE) {
+  worker_log_file <- if(enable_debug) {
+    f <- paste0("battenberg_workers_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".log")
+    cat("✓ Worker debug log enabled:", f, "\n")
+    f
+  } else {
+    ""  # Suppress output in production
+  }
+  
+  clp = parallel::makeCluster(nthreads, outfile=worker_log_file, verbose=enable_debug)
+  doParallel::registerDoParallel(clp)
+  
+  # Optionally propagate library paths to workers
+  if(!is.null(libs)) {
+    parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
+  }
+  
+  if(enable_debug) {
+    parallel::clusterCall(clp, function() options(warn=1))  # Print warnings immediately
+  }
+  
+  return(list(cluster=clp, worker_log=worker_log_file))
+}
+
+########################################################################################
 # Other
 ########################################################################################
 #' Check if a file exists, if it doesn't, exit non-clean

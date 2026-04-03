@@ -135,10 +135,8 @@ battenberg = function(analysis="paired",
 		                  enhanced_grid_search = F,
                       purple_path=NULL,
                       WES_solutions=NULL,
-                      seed=as.integer(1)) {
-  
-  requireNamespace("foreach")
-  requireNamespace("doParallel")
+                      seed=as.integer(1),
+                      debug_parallel=FALSE) {
   requireNamespace("parallel")
   requireNamespace("R.utils")
   libs <- .libPaths()
@@ -352,9 +350,8 @@ battenberg = function(analysis="paired",
     if (!skip_preprocessing[sampleidx]) {
       if (data_type=="wgs" | data_type=="WGS") {
         # Setup for parallel computing
-        clp = parallel::makeCluster(nthreads,outfile="")
-        doParallel::registerDoParallel(clp)
-        parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
+        clp_setup = setup_cluster_for_debugging(nthreads=nthreads, libs=libs, enable_debug=debug_parallel)
+        clp = clp_setup$cluster
         
         if (analysis == "paired"){
           
@@ -476,13 +473,13 @@ battenberg = function(analysis="paired",
       }
       
       # Setup for parallel computing
-      clp = parallel::makeCluster(nthreads,outfile="")
-      doParallel::registerDoParallel(clp)
+      clp_setup = setup_cluster_for_debugging(nthreads=nthreads, libs=NULL, enable_debug=debug_parallel)
+      clp = clp_setup$cluster
       
       # Reconstruct haplotypes
       # mclapply(1:length(chrom_names), function(chrom) {
       if (analysis=="germline"){
-        foreach::foreach (i=1:length(chrom_names)) %dopar% {
+        foreach::foreach (i=1:length(chrom_names), .verbose=debug_parallel, .errorhandling="stop") %dopar% {
           chrom = chrom_names[i]
           print(chrom)
           
@@ -510,7 +507,7 @@ battenberg = function(analysis="paired",
                                    seed=seed)      
         }
       } else {
-        foreach::foreach (i=1:length(chrom_names)) %dopar% {
+        foreach::foreach (i=1:length(chrom_names), .verbose=debug_parallel, .errorhandling="stop") %dopar% {
           chrom = chrom_names[i]
           print(chrom)      
           run_haplotyping(chrom=chrom,
@@ -627,14 +624,13 @@ battenberg = function(analysis="paired",
     
     
       # Setup for parallel computing
-      clp = parallel::makeCluster(nthreads,outfile="")
-      doParallel::registerDoParallel(clp)
-      parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
+      clp_setup = setup_cluster_for_debugging(nthreads=nthreads, libs=libs, enable_debug=debug_parallel)
+      clp = clp_setup$cluster
     
     print(chrom_names)
     # Reconstruct haplotypes
     .libPaths()
-    foreach::foreach (i=1:length(chrom_names)) %dopar% {
+    foreach::foreach (i=1:length(chrom_names), .verbose=debug_parallel, .errorhandling="stop") %dopar% {
       .libPaths()
       chrom = chrom_names[i]
       print(chrom)
@@ -664,7 +660,7 @@ battenberg = function(analysis="paired",
       # done renaming, next sections will overwrite orignals
       
       
-      foreach::foreach (i=1:length(chrom_names)) %dopar% {
+      foreach::foreach (i=1:length(chrom_names), .verbose=debug_parallel, .errorhandling="stop") %dopar% {
         chrom = chrom_names[i]
         print(chrom)
         
@@ -735,7 +731,7 @@ battenberg = function(analysis="paired",
   doParallel::registerDoParallel(clp)
   parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
   # for (sampleidx in 1:nsamples) {
-  foreach::foreach (sampleidx=1:nsamples) %dopar% {
+  foreach::foreach (sampleidx=1:nsamples, .verbose=debug_parallel, .errorhandling="stop") %dopar% {
     print(paste0("Fitting final copy number and calling subclones for sample ", samplename[sampleidx]))
     
     if (data_type=="wgs" | data_type=="WGS") {
