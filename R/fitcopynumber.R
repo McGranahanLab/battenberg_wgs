@@ -194,7 +194,8 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
       purple_tmp <- purple_tmp[, c("purity", "ploidy"), drop = FALSE]
       colnames(purple_tmp) <- c("rho", "psi")
       purple_tmp$solution_type <- "purpleDefault"
-      purple_solution <- purple_tmp
+      # Ensure consistent column order for rbind compatibility
+      purple_solution <- purple_tmp[, c("psi", "rho", "solution_type"), drop = FALSE]
     } else {
       warning(paste0(
         "No rows found in PURPLE purity file. ",
@@ -209,12 +210,12 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
     # saniteze sample name. Assume hashes are always separated by double dash:
     samplename_sanitized <- gsub("--.*", "", samplename)
     wes_tmp <- wes_tmp[wes_tmp$region == samplename_sanitized, , drop = FALSE]
-    wes_tmp <- wes_tmp[wes_tmp$region == samplename, , drop = FALSE]
     if (nrow(wes_tmp) > 0) {
       wes_tmp <- wes_tmp[, c("Ploidy", "ACF"), drop = FALSE]
       colnames(wes_tmp) <- c("psi", "rho")
       wes_tmp$solution_type <- "WESmanualQC"
-      wes_solution <- wes_tmp
+      # Ensure consistent column order for rbind compatibility
+      wes_solution <- wes_tmp[, c("psi", "rho", "solution_type"), drop = FALSE]
     } else {
       warning(paste0(
         "No matching rows for sample '", samplename, "' in External WES purity file '", External_WES_purity_path, "'. ",
@@ -231,6 +232,10 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   default_solution_df      <- data.frame(psi = ascat_optimum_pair$psi, rho = ascat_optimum_pair$rho, solution_type = "battenbergDefault")
   alternative_solutions_df <- data.frame(ascat_optimum_pair$alternative_solutions)
   alternative_solutions_df <- data.frame(psi = alternative_solutions_df$psi_ploidy, rho = alternative_solutions_df$rho_aberrant_cell_fraction, solution_type = "battenbergAlternative")
+  
+  # Ensure consistent column order for rbind operations
+  default_solution_df <- default_solution_df[, c("psi", "rho", "solution_type"), drop = FALSE]
+  alternative_solutions_df <- alternative_solutions_df[, c("psi", "rho", "solution_type"), drop = FALSE]
   
   extra_solutions <- NULL
   if (!is.null(purple_solution) && !is.null(wes_solution)) {
