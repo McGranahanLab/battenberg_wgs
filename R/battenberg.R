@@ -45,6 +45,7 @@
 #' @param skip_allele_counting Provide TRUE when allele counting can be skipped (i.e. its already done) (Default: FALSE)
 #' @param skip_preprocessing Provide TRUE when preprocessing is already complete (Default: FALSE)
 #' @param skip_phasing  Provide TRUE when phasing is already complete (Default: FALSE)
+#' @param skip_segmentation Provide TRUE when segmentation and multisample rephasing are already complete, i.e. BAFsegmented.txt files exist (Default: FALSE)
 #' @param usebeagle Should use beagle5 instead of impute2 Default: FALSE
 #' @param beaglejar Full path to Beagle java jar file Default: NA
 #' @param beagleref.template Full path template to Beagle reference files where the chromosome is replaced by 'CHROMNAME' Default: NA
@@ -109,6 +110,7 @@ battenberg = function(analysis="paired",
                       skip_allele_counting=F,
                       skip_preprocessing=F,
                       skip_phasing=F,
+                      skip_segmentation=F,
                       externalhaplotypefile = NA,
                       usebeagle=FALSE,
                       beaglejar=NA,
@@ -548,6 +550,7 @@ battenberg = function(analysis="paired",
 
     print(samplename[sampleidx])
     
+    if (!skip_segmentation) {
     print('SEGMENTING BAF HERE')
 
     # Segment the phased and haplotyped BAF data
@@ -571,6 +574,9 @@ battenberg = function(analysis="paired",
                                outprefix = paste0(samplename[sampleidx], "_Battenberg_phased_chr"),
                                chrom_names = chrom_names,
                                include_homozygous = F)
+    }
+    } else {
+      single_seg_done <- single_seg_done + 1
     }
     
   }
@@ -610,7 +616,7 @@ battenberg = function(analysis="paired",
   if (single_seg_done == single_seg_target) {
     emit_stage_event(
       stage = "single_sample_segmentation",
-      status = "complete",
+      status = if (skip_segmentation) "skipped" else "complete",
       stage_start = single_seg_stage_start,
       extra_info = paste0("samples_completed=", single_seg_done, "/", single_seg_target)
     )
@@ -618,7 +624,7 @@ battenberg = function(analysis="paired",
   
   # if this is a multisample run, combine the battenberg phasing outputs, incorporate it and resegment
   multisample_stage_start <- Sys.time()
-  if (nsamples > 1) {
+  if (nsamples > 1 && !skip_segmentation) {
     print("Constructing multisample phasing")
     multisamplehaplotypeprefix <- paste0(normalname, "_multisample_haplotypes_chr")
     
