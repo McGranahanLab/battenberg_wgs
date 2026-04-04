@@ -727,11 +727,11 @@ battenberg = function(analysis="paired",
   
   # Setup for parallel computing
   final_fit_stage_start <- Sys.time()
-  clp = parallel::makeCluster(min(nthreads, nsamples),outfile="")
-  doParallel::registerDoParallel(clp)
-  parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
+  clp_setup = setup_cluster_for_debugging(nthreads=min(nthreads, nsamples), libs=libs, enable_debug=debug_parallel)
+  clp = clp_setup$cluster
   # for (sampleidx in 1:nsamples) {
   foreach::foreach (sampleidx=1:nsamples, .verbose=debug_parallel, .errorhandling="stop") %dopar% {
+    tryCatch({
     print(paste0("Fitting final copy number and calling subclones for sample ", samplename[sampleidx]))
     
     if (data_type=="wgs" | data_type=="WGS") {
@@ -862,6 +862,20 @@ battenberg = function(analysis="paired",
       #                         PSI = psi)
       # }                           
     }
+    }, error = function(e) {
+      msg <- paste0(
+        "\n========== WORKER ERROR ==========\n",
+        "Sample: ", samplename[sampleidx], " (sampleidx=", sampleidx, ")\n",
+        "Error: ", conditionMessage(e), "\n",
+        "Call: ", deparse(conditionCall(e)), "\n",
+        "Traceback:\n",
+        paste(capture.output(traceback(4)), collapse="\n"), "\n",
+        "==================================\n"
+      )
+      cat(msg, file=stderr())
+      cat(msg)
+      stop(paste0("sample ", samplename[sampleidx], ": ", conditionMessage(e)))
+    })
   }
   parallel::stopCluster(clp)
 
