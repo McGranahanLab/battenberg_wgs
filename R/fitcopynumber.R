@@ -1580,7 +1580,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   
   print(paste("Number of rows merged =",nrow(SUBCLONESout)-nrow(outputDF)))
   
-  BBnew=BB[which(is.na(match(BB$chr,c("X","chrX")))),c(1:3,8:13)] # copynumber.txt columns to be populated with chrX calls
+  BBnew=BB[which(is.na(match(BB$chr,c("X","chrX")))),c("chr","startpos","endpos","nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A")] # copynumber.txt columns to be populated with chrX calls
   
   outputDF_for_merge=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,
                                 nMaj1_A=outputDF$nMaj1,nMin1_A=outputDF$nMin1,frac1_A=outputDF$frac1,
