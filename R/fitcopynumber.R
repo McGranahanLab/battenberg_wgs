@@ -1593,6 +1593,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   BBnew_extended=BB[which(is.na(match(BB$chr,c("X","chrX")))),] # copynumber_extended.txt columns for chrX
   
   outputDF_for_merge_extended=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,BAF=NA,pval=NA,LogR=outputDF$LogR,ntot=NA,
+                                         nMajor=outputDF$nMaj1,nMinor=outputDF$nMin1,
                                          nMaj1_A=outputDF$nMaj1,nMin1_A=outputDF$nMin1,frac1_A=outputDF$frac1,nMaj2_A=outputDF$nMaj2,nMin2_A=outputDF$nMin2,
                                          frac2_A=outputDF$frac2)
   BtoFsolutions=data.frame(matrix(nrow= nrow(outputDF),ncol = ncol(BB)-ncol(outputDF_for_merge_extended)))
