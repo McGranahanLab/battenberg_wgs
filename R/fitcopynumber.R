@@ -1648,10 +1648,10 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   
   # Update the genomewide Battenberg plots
   # goodness from rho_psi file (i.e. column named 'distance')
-  goodness=read.table(paste0(tumourname,"_rho_and_psi.txt"),header=T,stringsAsFactors = F,sep="\t")
+  goodness=read.table(paste0(tumourname,"_", solution_type, "_psi", PSI, "_rho", RHO, "_runclonalASCAT_rho_and_psi.txt"),header=T,stringsAsFactors = F,sep="\t")
   goodness=goodness[which(goodness$is.best=="TRUE"),"distance"]
   # rho and ploidy from purity_ploidy file
-  rho_psi=read.table(paste0(tumourname,"_purity_ploidy.txt"),header=T,stringsAsFactors = F,sep="\t")
+  rho_psi=read.table(paste0(tumourname,"_", solution_type, "_psi", PSI, "_rho", RHO, "_purity_ploidy.txt"),header=T,stringsAsFactors = F,sep="\t")
   # update for BB3 - replace cellularity with purity
   # rho=rho_psi$cellularity
   rho=rho_psi$purity
