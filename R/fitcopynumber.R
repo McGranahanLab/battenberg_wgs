@@ -564,6 +564,77 @@ calculate_bootstrap_interval = function(values, confidence_level) {
   return(interval)
 }
 
+#' Recalculate copy number confidence intervals from bootstrap data
+#'
+#' Reads a previously saved bootstrap file (produced by \code{callSubclones})
+#' and recalculates nMajor/nMinor confidence intervals at a new confidence level.
+#' The bootstrap values in the file are already bias-corrected, so this function
+#' applies the same percentile method used in the main pipeline.
+#'
+#' @param bootstraps_file Path to the \code{*_copy_number_bootstraps.txt} file
+#' @param subclones_file Path to the corresponding \code{*_subclones.txt} or
+#'   \code{*_subclones_extended.txt} file. If provided, the CI columns are
+#'   updated and the result is written to \code{output_file}.
+#' @param confidence_level Confidence level for the interval (e.g. 0.95, 0.99).
+#'   Must be strictly between 0 and 1.
+#' @param output_file Path to write the updated subclones file. Defaults to
+#'   overwriting \code{subclones_file}.
+#' @return A data.frame with columns: segment_id, chr, startpos, endpos,
+#'   nMajor_ci_lower, nMajor_ci_upper, nMinor_ci_lower, nMinor_ci_upper.
+#'   If \code{subclones_file} is provided, also writes the updated file.
+#' @export
+recalculate_cn_confidence_intervals = function(bootstraps_file, subclones_file=NULL, confidence_level=0.95, output_file=NULL) {
+  confidence_level = validate_copy_number_confidence_level(confidence_level)
+  if (isFALSE(confidence_level)) {
+    stop("confidence_level must be a numeric value strictly between 0 and 1")
+  }
+  
+  bootstraps = read.table(bootstraps_file, header=TRUE, sep="\t", stringsAsFactors=FALSE)
+  required_cols = c("segment_id", "nMajor", "nMinor")
+  missing_cols = setdiff(required_cols, colnames(bootstraps))
+  if (length(missing_cols) > 0) {
+    stop("Bootstrap file missing required columns: ", paste(missing_cols, collapse=", "))
+  }
+  
+  alpha = (1 - confidence_level) / 2
+  ci_result = do.call(rbind, lapply(split(bootstraps, bootstraps$segment_id), function(seg) {
+    data.frame(
+      segment_id = seg$segment_id[1],
+      chr = if ("chr" %in% colnames(seg)) seg$chr[1] else NA,
+      startpos = if ("startpos" %in% colnames(seg)) seg$startpos[1] else NA,
+      endpos = if ("endpos" %in% colnames(seg)) seg$endpos[1] else NA,
+      nMajor_ci_lower = as.numeric(stats::quantile(seg$nMajor, probs=alpha, na.rm=TRUE)),
+      nMajor_ci_upper = as.numeric(stats::quantile(seg$nMajor, probs=1-alpha, na.rm=TRUE)),
+      nMinor_ci_lower = as.numeric(stats::quantile(seg$nMinor, probs=alpha, na.rm=TRUE)),
+      nMinor_ci_upper = as.numeric(stats::quantile(seg$nMinor, probs=1-alpha, na.rm=TRUE)),
+      stringsAsFactors = FALSE
+    )
+  }))
+  rownames(ci_result) = NULL
+  
+  if (!is.null(subclones_file)) {
+    subclones = read.table(subclones_file, header=TRUE, sep="\t", stringsAsFactors=FALSE)
+    if (nrow(ci_result) != nrow(subclones)) {
+      stop("Number of segments in bootstrap file (", nrow(ci_result),
+           ") does not match subclones file (", nrow(subclones), ")")
+    }
+    # Match segments by row order (segment_id is sequential)
+    ci_ordered = ci_result[order(ci_result$segment_id), ]
+    subclones$nMajor_ci_lower = ci_ordered$nMajor_ci_lower
+    subclones$nMajor_ci_upper = ci_ordered$nMajor_ci_upper
+    subclones$nMinor_ci_lower = ci_ordered$nMinor_ci_lower
+    subclones$nMinor_ci_upper = ci_ordered$nMinor_ci_upper
+    
+    if (is.null(output_file)) {
+      output_file = subclones_file
+    }
+    write.table(subclones, output_file, quote=FALSE, col.names=TRUE, row.names=FALSE, sep="\t")
+    message("Updated CI columns in: ", output_file)
+  }
+  
+  return(ci_result)
+}
+
 #' Bootstrap continuous nMajor and nMinor estimates for a segment
 #' @noRd
 bootstrap_segment_copynumber = function(BAFke, segment_logr, rho, psi, gamma, noperms, default_l, default_LogR) {
@@ -694,6 +765,15 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
     nMinor_ci = c(lower=NA_real_, upper=NA_real_)
     if (calculate_cn_ci) {
       bootstrapped_cn = bootstrap_segment_copynumber(BAFke, segment_logr, rho, psi, gamma, noperms, l, LogR)
+      # Bias correction: the bootstrap resamples raw phased BAF and takes mean(),
+      # but the point estimate uses PCF-segmented BAF (BAFlevels[i]). These are
+      # different estimators, so the bootstrap distribution may be centered away
+      # from the point estimate. Shift the bootstrap distribution to center on the
+      # point estimates, preserving the CI width (uncertainty).
+      boot_nMajor_bias = mean(bootstrapped_cn$nMajor, na.rm=TRUE) - nMajor
+      boot_nMinor_bias = mean(bootstrapped_cn$nMinor, na.rm=TRUE) - nMinor
+      bootstrapped_cn$nMajor = bootstrapped_cn$nMajor - boot_nMajor_bias
+      bootstrapped_cn$nMinor = bootstrapped_cn$nMinor - boot_nMinor_bias
       nMajor_ci = calculate_bootstrap_interval(bootstrapped_cn$nMajor, cn_confidence_level)
       nMinor_ci = calculate_bootstrap_interval(bootstrapped_cn$nMinor, cn_confidence_level)
       bootstrapped_cn$segment_id = i
