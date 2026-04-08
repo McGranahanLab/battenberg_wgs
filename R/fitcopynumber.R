@@ -666,9 +666,9 @@ bootstrap_segment_copynumber = function(BAFke, segment_logr, rho, psi, gamma, no
       if (boot_l == 1) {
         boot_nMajor[j] = 1000
       } else {
-        boot_nMajor[j] = boot_nMajor[j] + boot_l * (0.01 - boot_nMinor[j]) / (1 - boot_l)
+        boot_nMajor[j] = boot_nMajor[j] + boot_l * (0 - boot_nMinor[j]) / (1 - boot_l)
       }
-      boot_nMinor[j] = 0.01
+      boot_nMinor[j] = 0
     }
   }
   return(data.frame(bootstrap_iteration=seq_len(noperms), nMajor=boot_nMajor, nMinor=boot_nMinor))
@@ -750,14 +750,16 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
     }
 
     # Increase nMajor and nMinor together, to avoid impossible combinations (with negative subclonal fractions)
+    nMinor_clamped = FALSE
     if (nMinor<0) {
       if (l==1) {
         # Avoid calling infinite copy number
         nMajor = cn_upper_limit
       } else {
-        nMajor = nMajor + l * (0.01 - nMinor) / (1-l)
+        nMajor = nMajor + l * (0 - nMinor) / (1-l)
       }
-      nMinor = 0.01
+      nMinor = 0
+      nMinor_clamped = TRUE
     }
     
         # calculate bootstrapped CIs:
@@ -776,6 +778,11 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
       bootstrapped_cn$nMinor = bootstrapped_cn$nMinor - boot_nMinor_bias
       nMajor_ci = calculate_bootstrap_interval(bootstrapped_cn$nMajor, cn_confidence_level)
       nMinor_ci = calculate_bootstrap_interval(bootstrapped_cn$nMinor, cn_confidence_level)
+      # When nMinor was clamped to 0, force CI lower to 0 and upper to at least 0.01
+      if (nMinor_clamped) {
+        nMinor_ci["lower"] = 0
+        nMinor_ci["upper"] = max(0.01, nMinor_ci["upper"])
+      }
       bootstrapped_cn$segment_id = i
       bootstrapped_cn$chr = chrom
       bootstrapped_cn$startpos = startpos - floor(startpos/1000000000) * 1000000000
