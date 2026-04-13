@@ -189,6 +189,12 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   wes_solution <- NULL
 
   if(!is.null(PURPLE_purity_path)){
+    if (!file.exists(PURPLE_purity_path)) {
+      warning(paste0(
+        "PURPLE purity file not found: '", PURPLE_purity_path, "'. ",
+        "Continuing without PURPLE default solution."
+      ))
+    } else {
     purple_tmp <- read.table(PURPLE_purity_path, head = T, sep = "\t")
     if (nrow(purple_tmp) > 0) {
       purple_tmp <- purple_tmp[, c("purity", "ploidy"), drop = FALSE]
@@ -203,9 +209,16 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
         "Continuing without PURPLE default solution."
       ))
     }
+    }
   }
 
   if(!is.null(External_WES_purity_path)){
+    if (!file.exists(External_WES_purity_path)) {
+      warning(paste0(
+        "External WES purity file not found: '", External_WES_purity_path, "'. ",
+        "Continuing without WES manual QC solution."
+      ))
+    } else {
     wes_tmp <- read.table(External_WES_purity_path, head = T, sep = "\t")
     # saniteze sample name. Assume hashes are always separated by double dash:
     samplename_sanitized <- gsub("--.*", "", samplename)
@@ -221,6 +234,7 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
         "No matching rows for sample '", samplename, "' in External WES purity file '", External_WES_purity_path, "'. ",
         "Continuing without WES manual QC solution."
       ))
+    }
     }
   }
   
@@ -1667,7 +1681,46 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   
   print(paste("Number of rows merged =",nrow(SUBCLONESout)-nrow(outputDF)))
   
-  BBnew=BB[which(is.na(match(BB$chr,c("X","chrX")))),c("chr","startpos","endpos","nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A")] # copynumber.txt columns to be populated with chrX calls
+  # Construct solution-specific filenames
+  subclones_file = paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_subclones.txt")
+  subclones_extended_file = paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_subclones_extended.txt")
+  
+  # --- Update solution-specific _subclones.txt (19 columns) ---
+  BB_no_x = BB[which(is.na(match(BB$chr, c("X","chrX")))), ]
+  chrX_for_subclones = data.frame(
+    chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
+    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
+    nMajor=outputDF$nMaj1, nMinor=outputDF$nMin1,
+    nMaj1_A=outputDF$nMaj1, nMin1_A=outputDF$nMin1, frac1_A=outputDF$frac1,
+    nMaj2_A=outputDF$nMaj2, nMin2_A=outputDF$nMin2, frac2_A=outputDF$frac2,
+    SDfrac_A=NA, SDfrac_A_BS=NA, frac1_A_0.025=NA, frac1_A_0.975=NA,
+    stringsAsFactors=FALSE)
+  BB_updated = rbind(BB_no_x, chrX_for_subclones)
+  write.table(BB_updated, subclones_file, col.names=T, row.names=F, quote=F, sep="\t")
+  
+  # --- Update solution-specific _subclones_extended.txt (full columns) ---
+  BB_ext = read.table(subclones_extended_file, header=T, stringsAsFactors=F)
+  BB_ext_no_x = BB_ext[which(is.na(match(BB_ext$chr, c("X","chrX")))), ]
+  chrX_for_extended = data.frame(
+    chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
+    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
+    nMajor=outputDF$nMaj1, nMinor=outputDF$nMin1,
+    nMajor_ci_lower=outputDF$subclonalCN_ci_lower, nMajor_ci_upper=outputDF$subclonalCN_ci_upper,
+    nMinor_ci_lower=NA, nMinor_ci_upper=NA,
+    nMaj1_A=outputDF$nMaj1, nMin1_A=outputDF$nMin1, frac1_A=outputDF$frac1,
+    nMaj2_A=outputDF$nMaj2, nMin2_A=outputDF$nMin2, frac2_A=outputDF$frac2,
+    stringsAsFactors=FALSE)
+  # Fill remaining columns (SDfrac_A, SDfrac_A_BS, ..., solutions B-F) with NA
+  remaining_cols = setdiff(colnames(BB_ext), colnames(chrX_for_extended))
+  for (col in remaining_cols) {
+    chrX_for_extended[[col]] = NA
+  }
+  chrX_for_extended = chrX_for_extended[, colnames(BB_ext), drop=FALSE]
+  BB_ext_updated = rbind(BB_ext_no_x, chrX_for_extended)
+  write.table(BB_ext_updated, subclones_extended_file, col.names=T, row.names=F, quote=F, sep="\t")
+  
+  # --- Legacy _copynumber.txt and _copynumber_extended.txt (backward compatibility) ---
+  BBnew=BB[which(is.na(match(BB$chr,c("X","chrX")))),c("chr","startpos","endpos","nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A")]
   
   outputDF_for_merge=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,
                                 nMaj1_A=outputDF$nMaj1,nMin1_A=outputDF$nMin1,frac1_A=outputDF$frac1,
