@@ -857,17 +857,6 @@ battenberg = function(analysis="paired",
                                  PSI = psi,
                                  solution_type = solution_type)
 
-
-      # if (nsamples > 1) {
-      #   print("Assessing mirrored subclonal allelic imbalance (MSAI)")
-      #   call_multisample_MSAI(rdsprefix = multisamplehaplotypeprefix,
-      #                         subclonesfiles = paste(tumourname, "_", solution_type, "_psi", psi, "_rho", rho, "_subclones.txt", sep=""),
-      #                         chrom_names = chrom_names,
-      #                         tumournames = tumourname,
-      #                         plotting = T,
-      #                         RHO = rho,
-      #                         PSI = psi)
-      # }                           
     }
     }, error = function(e) {
       msg <- paste0(

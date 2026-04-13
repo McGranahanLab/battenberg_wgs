@@ -303,8 +303,11 @@ get_multisample_phasing <- function(chrom, bbphasingprefixes, maxlag = 90, relat
 #' @export
 call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumournames, plotting = T, RHO, PSI) {
 
-  # compile all CN results
-  subclonescat <- lapply(X = subclonesfiles, FUN = function(x) read.delim(file = x, as.is = T))
+  # compile all CN results (resolve .gz paths if needed)
+  subclonescat <- lapply(X = subclonesfiles, FUN = function(x) {
+    f <- resolve_input_file(x)
+    read.delim(file = f, as.is = T)
+  })
   imbalancedregions <- do.call(rbind, subclonescat)
   # add sample identifiers
   imbalancedregions$sampleid <- rep(x = tumournames, sapply(X = subclonescat, FUN = nrow))
@@ -394,3 +397,54 @@ call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumour
 }
 
 
+#' Run MSAI detection using selected solutions for each sample
+#'
+#' Standalone function to assess mirrored subclonal allelic imbalance (MSAI) after
+#' solutions have been reviewed and selected for each sample. Intended to be called
+#' after the main Battenberg pipeline has finished and the user has chosen which
+#' purity/ploidy solution to use per sample.
+#'
+#' @param samplenames Character vector of sample names (tumour identifiers).
+#' @param normalname Character string, name of the matched normal used during the Battenberg run.
+#' @param subclonesfiles Character vector of paths to the selected _subclones.txt (or .txt.gz) file
+#'   for each sample, in the same order as samplenames.
+#' @param chrom_names Character vector of chromosome names to assess (e.g. c("1","2",...,"22")).
+#' @param rho Numeric, purity value to use in output file naming.
+#' @param psi Numeric, ploidy value to use in output file naming.
+#' @param plotting Logical, whether to generate per-sample multisample phasing plots (Default: TRUE).
+#' @param workdir Optional working directory. If provided, setwd() is called before running. Default: NULL.
+#' @export
+run_MSAI <- function(samplenames, normalname, subclonesfiles, chrom_names,
+                     rho, psi, plotting = TRUE, workdir = NULL) {
+
+  if (length(samplenames) < 2) {
+    stop("MSAI requires at least 2 samples")
+  }
+  if (length(samplenames) != length(subclonesfiles)) {
+    stop("samplenames and subclonesfiles must have the same length")
+  }
+
+  if (!is.null(workdir)) {
+    oldwd <- setwd(workdir)
+    on.exit(setwd(oldwd))
+  }
+
+  # Resolve .gz paths
+  resolved_files <- sapply(subclonesfiles, function(f) {
+    rf <- resolve_input_file(f)
+    if (!file.exists(rf)) {
+      stop(paste0("Subclones file not found: ", f))
+    }
+    rf
+  })
+
+  rdsprefix <- paste0(normalname, "_multisample_haplotypes_chr")
+
+  call_multisample_MSAI(rdsprefix = rdsprefix,
+                        subclonesfiles = resolved_files,
+                        chrom_names = chrom_names,
+                        tumournames = samplenames,
+                        plotting = plotting,
+                        RHO = rho,
+                        PSI = psi)
+}
