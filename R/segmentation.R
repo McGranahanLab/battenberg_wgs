@@ -342,7 +342,7 @@ segment.baf.phased = function(samplename, inputfile, outputfile, prior_breakpoin
   }
   
   BAFraw = as.data.frame(read_baf(inputfile))
-  if (!is.null(prior_breakpoints_file)) { bkps = read.table(prior_breakpoints_file, header=T, stringsAsFactors=F) } else { bkps = NULL }
+  if (!is.null(prior_breakpoints_file)) { bkps = read_prior_breakpoints_file(prior_breakpoints_file) } else { bkps = NULL }
   
   BAFoutput = NULL
   for (chr in unique(BAFraw[,1])) {
@@ -684,7 +684,7 @@ segment.baf.phased.multisample = function(samplename, inputfile, outputfile, pri
   
   BAFraw <- Reduce(f = function(...) merge(..., sort = F, all = F), x = lapply(X = inputfile, FUN = Battenberg:::read_baf))
   # BAFraw = as.data.frame(read_tsv(inputfile, col_types = paste0("ci", paste0(rep("n", length(samplename)), collapse = ""), collapse = "")))
-  if (!is.null(prior_breakpoints_file)) { bkps = read.table(prior_breakpoints_file, header=T, stringsAsFactors=F) } else { bkps = NULL }
+  if (!is.null(prior_breakpoints_file)) { bkps = read_prior_breakpoints_file(prior_breakpoints_file) } else { bkps = NULL }
   
   BAFoutput = list()
   for (chr in unique(BAFraw[,1])) {

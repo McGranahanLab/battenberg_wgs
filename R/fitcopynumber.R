@@ -459,7 +459,7 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   # Collapse the BAFsegmented into breakpoints to be used in plotting
   segment_breakpoints = collapse_bafsegmented_to_segments(BAFvals)
   if (!is.null(prior_breakpoints_file) & !ifelse(is.null(prior_breakpoints_file), TRUE, prior_breakpoints_file=="NA") & !ifelse(is.null(prior_breakpoints_file), TRUE, is.na(prior_breakpoints_file))) {
-    svs = read.table(prior_breakpoints_file, header=T, stringsAsFactors=F)
+    svs = read_prior_breakpoints_file(prior_breakpoints_file)
   }
   
   # Create a plot per chromosome that shows the segments with their CN state in text
@@ -1397,8 +1397,8 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   print(paste("Number of chrX nonPAR SNPs =",nrow(PCFinput)))
   
   if (!is.null(prior_breakpoints_file)) {
-    sv=read.table(prior_breakpoints_file, header=T, stringsAsFactors=F)
-    sv=sv[which(!is.na(match(sv$chr,c("X","chrX")))),]
+    sv=read_prior_breakpoints_file(prior_breakpoints_file)
+    sv=sv[which(!is.na(match(sv$chr,c("X","chrX","23")))),]
     # check if there are breakpoints within chrX
     if (nrow(sv)>0){
       # make sure all SV breakpoint positions are within the LogR data range and not outside of it  

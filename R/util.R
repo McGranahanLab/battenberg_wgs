@@ -62,6 +62,46 @@ read_table_generic = function(file, header=T, row.names=F, stringsAsFactor=F, se
   return(d)
 }
 
+#' Read and normalize prior breakpoint files
+#'
+#' Accepts either header style:
+#' - chromosome, position, or:
+#' - chr, pos
+#' and returns a data.frame containing all four columns for compatibility
+#' across segmentation, plotting and chrX calling paths.
+#' @param prior_breakpoints_file Path to a breakpoint file
+#' @return A data.frame with columns chromosome, position, chr, pos
+#' @noRd
+read_prior_breakpoints_file = function(prior_breakpoints_file) {
+  bkps = read.table(prior_breakpoints_file, header=TRUE, stringsAsFactors=FALSE)
+  names_lower = tolower(colnames(bkps))
+
+  chromosome_col = which(names_lower %in% c("chromosome", "chr"))
+  position_col = which(names_lower %in% c("position", "pos"))
+
+  if (length(chromosome_col) == 0 || length(position_col) == 0) {
+    stop(
+      "prior_breakpoints_file must contain chromosome/position columns ",
+      "(accepted aliases: chromosome|chr and position|pos)"
+    )
+  }
+
+  chromosome = as.character(bkps[[chromosome_col[1]]])
+  position = suppressWarnings(as.numeric(bkps[[position_col[1]]]))
+  if (all(is.na(position))) {
+    stop("prior_breakpoints_file position column could not be parsed as numeric")
+  }
+
+  normalized = data.frame(
+    chromosome=chromosome,
+    position=position,
+    stringsAsFactors=FALSE
+  )
+  normalized$chr = normalized$chromosome
+  normalized$pos = normalized$position
+  return(normalized)
+}
+
 #' Parser for logR data
 #' @param filename Filename of the file to read in
 #' @param header Whether the file contains a header (Default: TRUE)
