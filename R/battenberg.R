@@ -69,6 +69,10 @@
 #' @param multisample_relative_weight_balanced Relative weight to give to haplotype info from a sample without allelic imbalance in the region (Default: 0.25)
 #' @param enhanced_grid_search Should use multi-start, parallelized and multi-approach grid search (Default: FALSE)
 #' @param cn_confidence_level Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)
+#' @param test_mode Enable test mode for faster execution on production data. Overrides noperms, impute_region_size, and enhanced_grid_search with fast defaults unless explicitly set (Default: FALSE)
+#' @param noperms Number of bootstrap permutations for subclonal copy number confidence intervals (Default: 1000; test_mode default: 10)
+#' @param impute_region_size Size of genomic windows in bp used by IMPUTE2 for phasing. Larger values mean fewer chunks and faster runtime at the cost of more RAM (Default: 5000000; test_mode default: 20000000)
+#' @param test_chromosomes Character vector of chromosome names to restrict the analysis to, e.g. c("1", "10", "21"). NULL means use all chromosomes from the impute info file (Default: NULL)
 #' @author sd11, jdemeul, Naser Ansari-Pour, Julio Cesar Cortes Rios
 #' @export
 battenberg = function(analysis="paired",
@@ -137,11 +141,28 @@ battenberg = function(analysis="paired",
 		                  enhanced_grid_search = F,
                       purple_path=NULL,
                       WES_solutions=NULL,
+                      test_mode=FALSE,
+                      noperms=1000,
+                      impute_region_size=5000000,
+                      test_chromosomes=NULL,
                       seed=as.integer(1),
                       debug_parallel=FALSE) {
   requireNamespace("parallel")
   requireNamespace("R.utils")
   libs <- .libPaths()
+
+  # --- Test mode overrides ---
+  if (test_mode) {
+    warning("Running in TEST MODE — results are NOT suitable for production use. ",
+            "Overriding noperms, impute_region_size, and enhanced_grid_search for speed.")
+    # Only override if user didn't explicitly change from default
+    if (noperms == 1000) noperms <- 10
+    if (impute_region_size == 5000000) impute_region_size <- 20000000
+    if (!enhanced_grid_search) enhanced_grid_search <- TRUE
+  }
+  if (!is.null(test_chromosomes)) {
+    print(paste0("Chromosome subsetting active: restricting to chromosomes ", paste(test_chromosomes, collapse=", ")))
+  }
 
   pipeline_start_time <- Sys.time()
   format_duration <- function(seconds) {
@@ -336,6 +357,20 @@ battenberg = function(analysis="paired",
     allelecounts_file = NULL
   }
   print(chrom_names) 
+
+  # Apply chromosome subsetting if requested
+  if (!is.null(test_chromosomes)) {
+    missing_chroms <- setdiff(test_chromosomes, chrom_names)
+    if (length(missing_chroms) > 0) {
+      warning("Requested test chromosomes not found in impute info: ", paste(missing_chroms, collapse=", "))
+    }
+    chrom_names <- chrom_names[chrom_names %in% test_chromosomes]
+    if (length(chrom_names) == 0) {
+      stop("No valid chromosomes remain after applying test_chromosomes filter")
+    }
+    print(paste0("After test_chromosomes subsetting: ", paste(chrom_names, collapse=", ")))
+  }
+
   print(nsamples)
 
   preprocessing_stage_start <- Sys.time()
@@ -507,6 +542,7 @@ battenberg = function(analysis="paired",
                                    beaglenthreads=beaglenthreads,
                                    beaglewindow=beaglewindow,
                                    beagleoverlap=beagleoverlap,
+                                   region.size=impute_region_size,
                                    seed=seed)      
         }
       } else {
@@ -534,6 +570,7 @@ battenberg = function(analysis="paired",
                           beagleoverlap=beagleoverlap,
                           externalhaplotypeprefix=externalhaplotypeprefix,
                           use_previous_imputation=(sampleidx > 1),
+                          region.size=impute_region_size,
                           seed=seed)
         }
       }
@@ -811,7 +848,7 @@ battenberg = function(analysis="paired",
                     maxdist=0.01, 
                     max_allowed_state=max_allowed_state, 
                     cn_upper_limit=cn_upper_limit, 
-                    noperms=1000,
+                    noperms=noperms,
                     cn_confidence_level=cn_confidence_level,
                     seed=seed,
                     calc_seg_baf_option=calc_seg_baf_option,

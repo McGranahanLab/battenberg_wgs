@@ -321,6 +321,7 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
                            beaglewindow=40,
                            beagleoverlap=4,
 				   javajre="java",
+                           region.size=5000000,
                            seed=as.integer(1))
 {
   
@@ -413,7 +414,7 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
                  is.male=ismale,
                  imputeinfofile=imputeinfofile,
                  impute.exe=impute_exe,
-                 region.size=5000000,
+                 region.size=region.size,
                  chrom=chrom,
                  seed=seed)
       
@@ -422,7 +423,7 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
                             outputfile=paste(tumourname, "_impute_output_chr", chrom, "_allHaplotypeInfo.txt", sep=""),
                             is.male=ismale,
                             imputeinfofile=imputeinfofile,
-                            region.size=5000000,
+                            region.size=region.size,
                             chrom=chrom)
       # Cleanup temp Impute output
       unlink(paste(tumourname, "_impute_output_chr", chrom, ".txt*K.txt*", sep=""))
@@ -534,6 +535,7 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
                            beaglewindow=40,
                            beagleoverlap=4,
                            javajre="java",
+                           region.size=5000000,
                            seed=as.integer(1))
 {
   
@@ -617,7 +619,7 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
                  is.male=ismale,
                  imputeinfofile=imputeinfofile,
                  impute.exe=impute_exe,
-                 region.size=5000000,
+                 region.size=region.size,
                  chrom=chrom,
                  seed=seed)
       
@@ -626,7 +628,7 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
                             outputfile=paste(germlinename, "_impute_output_chr", chrom, "_allHaplotypeInfo.txt", sep=""),
                             is.male=ismale,
                             imputeinfofile=imputeinfofile,
-                            region.size=5000000,
+                            region.size=region.size,
                             chrom=chrom)
       # Cleanup temp Impute output
       unlink(paste(germlinename, "_impute_output_chr", chrom, ".txt*K.txt*", sep=""))
