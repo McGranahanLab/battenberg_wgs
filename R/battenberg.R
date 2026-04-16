@@ -153,7 +153,7 @@ battenberg = function(analysis="paired",
 
   # --- Test mode overrides ---
   if (test_mode) {
-    warning("Running in TEST MODE — results are NOT suitable for production use. ",
+    message("WARNING: Running in TEST MODE — results are NOT suitable for production use. ",
             "Overriding noperms, impute_region_size, and enhanced_grid_search for speed.")
     # Only override parameters the user didn't explicitly supply
     if (missing(noperms)) noperms <- 10
@@ -276,7 +276,12 @@ battenberg = function(analysis="paired",
     paste0("chrom_coord_file = ", if (is.null(chrom_coord_file)) "NULL" else chrom_coord_file),
     paste0("enhanced_grid_search = ", enhanced_grid_search),
     paste0("purple_path = ", if (is.null(purple_path)) "NULL" else purple_path),
-    paste0("WES_solutions = ", if (is.null(WES_solutions)) "NULL" else WES_solutions)
+    paste0("WES_solutions = ", if (is.null(WES_solutions)) "NULL" else WES_solutions),
+    paste0("test_mode = ", test_mode),
+    paste0("noperms = ", noperms),
+    paste0("impute_region_size = ", impute_region_size),
+    paste0("test_chromosomes = ", if (is.null(test_chromosomes)) "NULL" else paste(test_chromosomes, collapse=", ")),
+    paste0("debug_parallel = ", debug_parallel)
   )
   writeLines(run_log_lines, con=run_log_file)
 
