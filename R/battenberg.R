@@ -159,9 +159,11 @@ battenberg = function(analysis="paired",
     if (noperms == 1000) noperms <- 10
     if (impute_region_size == 5000000) impute_region_size <- 20000000
     if (!enhanced_grid_search) enhanced_grid_search <- TRUE
-  }
-  if (!is.null(test_chromosomes)) {
-    print(paste0("Chromosome subsetting active: restricting to chromosomes ", paste(test_chromosomes, collapse=", ")))
+    if (!is.null(test_chromosomes)) {
+      print(paste0("Chromosome subsetting active: restricting to chromosomes ", paste(test_chromosomes, collapse=", ")))
+    }
+  } else {
+    test_chromosomes <- NULL
   }
 
   pipeline_start_time <- Sys.time()
