@@ -545,6 +545,7 @@ battenberg = function(analysis="paired",
                                    beaglewindow=beaglewindow,
                                    beagleoverlap=beagleoverlap,
                                    region.size=impute_region_size,
+                                   test_mode=test_mode,
                                    seed=seed)      
         }
       } else {
@@ -573,6 +574,7 @@ battenberg = function(analysis="paired",
                           externalhaplotypeprefix=externalhaplotypeprefix,
                           use_previous_imputation=(sampleidx > 1),
                           region.size=impute_region_size,
+                          test_mode=test_mode,
                           seed=seed)
         }
       }

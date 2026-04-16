@@ -11,7 +11,7 @@
 #' @param seed The seed to be set
 #' @author dw9
 #' @export
-run.impute = function(inputfile, outputfile.prefix, is.male, imputeinfofile, impute.exe="impute2", region.size=5000000, chrom=NA, seed=as.integer(1)) {
+run.impute = function(inputfile, outputfile.prefix, is.male, imputeinfofile, impute.exe="impute2", region.size=5000000, chrom=NA, test_mode=FALSE, seed=as.integer(1)) {
   
   # Read in the impute file information
   impute.info = parse.imputeinfofile(imputeinfofile, is.male, chrom=chrom)
@@ -37,6 +37,7 @@ run.impute = function(inputfile, outputfile.prefix, is.male, imputeinfofile, imp
                   " -o ", outputfile.prefix, "_", boundaries[b]/1000, "K_", boundaries[b+1]/1000, "K.txt",
                   " -phase",
                   " -seed ", seed,
+                  if (test_mode && region.size > 5000000) " -allow_large_regions" else "",
                   " -os 2", sep="") # lowers computational cost by not imputing reference only SNPs
       EXIT_CODE=system(cmd, wait=T)
       stopifnot(EXIT_CODE==0)
@@ -322,6 +323,7 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
                            beagleoverlap=4,
 				   javajre="java",
                            region.size=5000000,
+                           test_mode=FALSE,
                            seed=as.integer(1))
 {
   
@@ -416,6 +418,7 @@ run_haplotyping = function(chrom, tumourname, normalname, ismale, imputeinfofile
                  impute.exe=impute_exe,
                  region.size=region.size,
                  chrom=chrom,
+                 test_mode=test_mode,
                  seed=seed)
       
       # As impute runs in windows across a chromosome we need to assemble the output
@@ -536,6 +539,7 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
                            beagleoverlap=4,
                            javajre="java",
                            region.size=5000000,
+                           test_mode=FALSE,
                            seed=as.integer(1))
 {
   
@@ -621,6 +625,7 @@ run_haplotyping_germline = function(chrom, germlinename, normalname, ismale, imp
                  impute.exe=impute_exe,
                  region.size=region.size,
                  chrom=chrom,
+                 test_mode=test_mode,
                  seed=seed)
       
       # As impute runs in windows across a chromosome we need to assemble the output
