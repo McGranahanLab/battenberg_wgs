@@ -155,10 +155,10 @@ battenberg = function(analysis="paired",
   if (test_mode) {
     warning("Running in TEST MODE — results are NOT suitable for production use. ",
             "Overriding noperms, impute_region_size, and enhanced_grid_search for speed.")
-    # Only override if user didn't explicitly change from default
-    if (noperms == 1000) noperms <- 10
-    if (impute_region_size == 5000000) impute_region_size <- 20000000
-    if (!enhanced_grid_search) enhanced_grid_search <- TRUE
+    # Only override parameters the user didn't explicitly supply
+    if (missing(noperms)) noperms <- 10
+    if (missing(impute_region_size)) impute_region_size <- 20000000
+    if (missing(enhanced_grid_search)) enhanced_grid_search <- TRUE
     if (!is.null(test_chromosomes)) {
       print(paste0("Chromosome subsetting active: restricting to chromosomes ", paste(test_chromosomes, collapse=", ")))
     }
