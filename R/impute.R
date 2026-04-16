@@ -26,6 +26,8 @@ run.impute = function(inputfile, outputfile.prefix, is.male, imputeinfofile, imp
     # Take the start of the region+1 here to make sure there are no overlapping regions, wich causes a
     # problem with SNPs on exactly the boundary. It does mean the first base on the first chromosome
     # cannot be phased
+    print(paste0("IMPUTE2 region.size=", region.size, " | n_chunks=", length(boundaries)-1,
+                  " | chr=", impute.info[r,]$chrom, " | start=", impute.info[r,]$start, " | end=", impute.info[r,]$end))
     for(b in 1:(length(boundaries)-1)){
       cmd = paste(impute.exe,
                   " -m ", impute.info[r,]$genetic_map,
@@ -39,6 +41,7 @@ run.impute = function(inputfile, outputfile.prefix, is.male, imputeinfofile, imp
                   " -seed ", seed,
                   if (test_mode && region.size > 5000000) " -allow_large_regions" else "",
                   " -os 2", sep="") # lowers computational cost by not imputing reference only SNPs
+      print(paste0("IMPUTE2 cmd: ", cmd))
       EXIT_CODE=system(cmd, wait=T)
       stopifnot(EXIT_CODE==0)
     }
