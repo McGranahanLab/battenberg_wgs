@@ -245,7 +245,11 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   # battenberg default solution
   default_solution_df      <- data.frame(psi = ascat_optimum_pair$psi, rho = ascat_optimum_pair$rho, solution_type = "battenbergDefault")
   alternative_solutions_df <- data.frame(ascat_optimum_pair$alternative_solutions)
-  alternative_solutions_df <- data.frame(psi = alternative_solutions_df$psi_ploidy, rho = alternative_solutions_df$rho_aberrant_cell_fraction, solution_type = "battenbergAlternative")
+  if (nrow(alternative_solutions_df) > 0) {
+    alternative_solutions_df <- data.frame(psi = alternative_solutions_df$psi_ploidy, rho = alternative_solutions_df$rho_aberrant_cell_fraction, solution_type = "battenbergAlternative")
+  } else {
+    alternative_solutions_df <- data.frame(psi = numeric(0), rho = numeric(0), solution_type = character(0))
+  }
   
   # Ensure consistent column order for rbind operations
   default_solution_df <- default_solution_df[, c("psi", "rho", "solution_type"), drop = FALSE]
