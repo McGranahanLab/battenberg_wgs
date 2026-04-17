@@ -1628,10 +1628,11 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
     if (length(SPLIT[[j]])>1){
       #print(length(SPLIT[[j]]))
       SUBsplit=SUBCLONESout[which(!is.na(match(SUBCLONESout$rank,SPLIT[[j]]))),]
+      SUBsplit=SUBsplit[order(SUBsplit$rank),]  # restore positional order for correct merging
       if (length(unique(SUBsplit$arm))==1){
         if (sd(SUBsplit$subclonalCN)<=0.01){
           mergedseg=SUBsplit[1,]
-          mergedseg$endpos=SUBsplit[length(SPLIT[[j]]),"endpos"]
+          mergedseg$endpos=SUBsplit[nrow(SUBsplit),"endpos"]
           mergedseg$nSNPs=sum(SUBsplit$nSNPs)
           mergedseg$LogR=weighted.mean(SUBsplit$LogR,SUBsplit$nSNPs)
           outputDF=rbind(outputDF,mergedseg)
@@ -1644,6 +1645,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
       } else{
         # if (length(SUBsplit$arm=="p"))
         pseg=SUBsplit[SUBsplit$arm=="p",]
+        pseg=pseg[order(pseg$rank),]
         if (nrow(pseg)>1){
           if (sd(pseg$subclonalCN)<=0.01){
             mergedseg=pseg[1,]
@@ -1657,6 +1659,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
           }
         } else {outputDF=rbind(outputDF,pseg)}
         qseg=SUBsplit[SUBsplit$arm=="q",]
+        qseg=qseg[order(qseg$rank),]
         if (nrow(qseg)>1){
           if (sd(qseg$subclonalCN)<=0.01){
             mergedseg=qseg[1,]
