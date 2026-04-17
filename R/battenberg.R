@@ -73,6 +73,7 @@
 #' @param noperms Number of bootstrap permutations for subclonal copy number confidence intervals (Default: 1000; test_mode default: 10)
 #' @param impute_region_size Size of genomic windows in bp used by IMPUTE2 for phasing. Larger values mean fewer chunks and faster runtime at the cost of more RAM (Default: 5000000; test_mode default: 20000000)
 #' @param test_chromosomes Character vector of chromosome names to restrict the analysis to, e.g. c("1", "10", "21"). NULL means use all chromosomes from the impute info file (Default: NULL)
+#' @param organize_output Organize output files into subdirectories (results/, intermediate/, plots/, logs/) after processing. On restart with any skip flag, files are flattened back to the working directory first (Default: TRUE)
 #' @author sd11, jdemeul, Naser Ansari-Pour, Julio Cesar Cortes Rios
 #' @export
 battenberg = function(analysis="paired",
@@ -145,6 +146,7 @@ battenberg = function(analysis="paired",
                       noperms=1000,
                       impute_region_size=5000000,
                       test_chromosomes=NULL,
+                      organize_output=TRUE,
                       seed=as.integer(1),
                       debug_parallel=FALSE) {
   requireNamespace("parallel")
@@ -164,6 +166,12 @@ battenberg = function(analysis="paired",
     }
   } else {
     test_chromosomes <- NULL
+  }
+
+  # --- Flatten organized subdirectories for restart compatibility ---
+  any_skip <- any(skip_preprocessing, skip_phasing, skip_segmentation, skip_allele_counting)
+  if (organize_output && any_skip) {
+    flatten_organized_output()
   }
 
   pipeline_start_time <- Sys.time()
@@ -281,6 +289,7 @@ battenberg = function(analysis="paired",
     paste0("noperms = ", noperms),
     paste0("impute_region_size = ", impute_region_size),
     paste0("test_chromosomes = ", if (is.null(test_chromosomes)) "NULL" else paste(test_chromosomes, collapse=", ")),
+    paste0("organize_output = ", organize_output),
     paste0("debug_parallel = ", debug_parallel)
   )
   writeLines(run_log_lines, con=run_log_file)
@@ -930,55 +939,38 @@ battenberg = function(analysis="paired",
 
   #KT: compress files 
   compression_stage_start <- Sys.time()
-  # list all text files
-  all_text_files <- list.files(pattern = ".txt$")
 
-  for(i in 1:length(all_text_files)){
-
-    file_name <- all_text_files[i]
-    old_name <- sub("\\.txt", "", file_name)
-    new_name <- paste0(old_name, ".txt.gz")
-    if (!file.exists(new_name)) {
-      R.utils::gzip(file_name, new_name)
-    }
+  # If organizing output, move files into subdirectories first
+  if (organize_output) {
+    organize_output_files()
   }
 
-  #and change the tab files
-  all_tab_files <- list.files(pattern = ".tab$")
-  if (length(all_tab_files) > 0) {
-    for(i in 1:length(all_tab_files)){
-
-      file_name <- all_tab_files[i]
-      old_name <- sub("\\.tab", "", file_name)
-      new_name <- paste0(old_name, ".tab.gz")
-      if (!file.exists(new_name)) {
-        R.utils::gzip(file_name, new_name)
+  # Compress text, tab, and log files (search subdirectories if organized)
+  gzip_files <- function(pattern) {
+    files <- list.files(pattern = pattern, recursive = organize_output)
+    n <- 0L
+    for (f in files) {
+      gz_name <- paste0(f, ".gz")
+      if (!file.exists(gz_name)) {
+        R.utils::gzip(f, gz_name)
+        n <- n + 1L
       }
     }
+    return(list(total = length(files), compressed = n))
   }
 
-  #and change the log files
-  all_log_files <- list.files(pattern = ".log$")
-  if (length(all_log_files) > 0) {
-    for(i in 1:length(all_log_files)){
-
-      file_name <- all_log_files[i]
-      old_name <- sub("\\.log", "", file_name)
-      new_name <- paste0(old_name, ".log.gz")
-      if (!file.exists(new_name)) {
-        R.utils::gzip(file_name, new_name)
-      }
-
-    }
-  }
+  txt_stats <- gzip_files("\\.txt$")
+  tab_stats <- gzip_files("\\.tab$")
+  log_stats <- gzip_files("\\.log$")
 
   emit_stage_event(
     stage = "compression",
     status = "complete",
     stage_start = compression_stage_start,
-    extra_info = paste0("txt_files=", length(all_text_files),
-                        " tab_files=", length(all_tab_files),
-                        " log_files=", length(all_log_files))
+    extra_info = paste0("txt_files=", txt_stats$total,
+                        " tab_files=", tab_stats$total,
+                        " log_files=", log_stats$total,
+                        if (organize_output) " organized=TRUE" else "")
   )
 
   emit_stage_event(

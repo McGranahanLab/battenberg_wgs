@@ -472,3 +472,117 @@ assert.file.exists = function(filename) {
     quit(save="no", status=1)
   }
 }
+
+########################################################################################
+# Output organization
+########################################################################################
+
+#' Classify output files into organized subdirectories
+#'
+#' Determines whether a file belongs in results/, intermediate/, plots/, or logs/
+#' based on filename patterns. Returns the target subdirectory name.
+#' @param filename Basename of the file to classify
+#' @return Character string: one of "results", "intermediate", "plots", "logs"
+#' @noRd
+classify_output_file <- function(filename) {
+  # Plots: all image files
+  if (grepl("\\.(png|pdf)$", filename, ignore.case = TRUE)) return("plots")
+
+  # Logs: worker logs and run parameter logs
+  if (grepl("\\.(log|log\\.gz)$", filename)) return("logs")
+  if (grepl("^battenberg_workers_", filename)) return("logs")
+
+  # Results: key deliverables
+  # subclones (final, not pre-masking _1 versions)
+  if (grepl("_subclones\\.txt", filename) && !grepl("_subclones_1", filename)) return("results")
+  if (grepl("_subclones_extended\\.txt", filename)) return("results")
+  if (grepl("_purity_ploidy\\.txt", filename)) return("results")
+  if (grepl("_all_solutions_rho_psi\\.txt", filename)) return("results")
+  if (grepl("_copynumber\\.txt", filename) || grepl("_copynumber_extended\\.txt", filename)) return("results")
+  if (grepl("_chrX_subclones\\.txt", filename) || grepl("_chrX_copynumber\\.txt", filename)) return("results")
+  if (grepl("_refit_suggestion\\.txt", filename)) return("results")
+  if (grepl("\\.BAFsegmented\\.txt", filename)) return("results")
+  if (grepl("\\.logRsegmented\\.txt", filename)) return("results")
+  if (grepl("_multisample_MSAI\\.txt", filename)) return("results")
+  if (grepl("_runclonalASCAT_rho_and_psi\\.txt", filename)) return("results")
+  if (grepl("_ascat_optimum_pair\\.RDS$", filename)) return("results")
+  if (grepl("_battenberg_run_params\\.log", filename)) return("logs")
+
+  # Everything else is intermediate
+  return("intermediate")
+}
+
+#' Organize output files into subdirectories
+#'
+#' Moves all files in the working directory into results/, intermediate/,
+#' plots/, and logs/ subdirectories based on filename patterns. Called at
+#' the end of the pipeline after all processing is complete.
+#'
+#' @return Invisible list of moved files by category
+#' @export
+organize_output_files <- function() {
+  subdirs <- c("results", "intermediate", "plots", "logs")
+  for (d in subdirs) {
+    dir.create(d, showWarnings = FALSE, recursive = TRUE)
+  }
+
+  # List all files in current directory (not in subdirectories, not directories)
+  all_files <- list.files(".", full.names = FALSE, recursive = FALSE)
+  all_files <- all_files[!file.info(all_files)$isdir]
+
+  moved <- list(results = character(0), intermediate = character(0),
+                plots = character(0), logs = character(0))
+
+  for (f in all_files) {
+    dest_type <- classify_output_file(f)
+    dst <- file.path(dest_type, f)
+    if (file.rename(f, dst)) {
+      moved[[dest_type]] <- c(moved[[dest_type]], f)
+    } else {
+      warning(paste0("Failed to move file: ", f, " -> ", dst))
+    }
+  }
+
+  for (type in names(moved)) {
+    n <- length(moved[[type]])
+    if (n > 0) print(paste0("Organized ", n, " files into ", type, "/"))
+  }
+
+  return(invisible(moved))
+}
+
+#' Flatten organized subdirectories back to the working directory
+#'
+#' Moves all files from results/, intermediate/, plots/, and logs/
+#' subdirectories back to the current working directory. Used at the
+#' start of a restart run to restore the flat layout expected by the
+#' pipeline stages.
+#'
+#' @return Invisible integer count of files moved
+#' @export
+flatten_organized_output <- function() {
+  subdirs <- c("results", "intermediate", "plots", "logs")
+  n_moved <- 0L
+
+  for (subdir in subdirs) {
+    if (!dir.exists(subdir)) next
+    files_in_subdir <- list.files(subdir, full.names = FALSE)
+    for (f in files_in_subdir) {
+      src <- file.path(subdir, f)
+      if (file.rename(src, f)) {
+        n_moved <- n_moved + 1L
+      } else {
+        warning(paste0("Failed to flatten file: ", src, " -> ", f))
+      }
+    }
+    # Remove empty subdirectory
+    remaining <- list.files(subdir)
+    if (length(remaining) == 0) unlink(subdir, recursive = TRUE)
+  }
+
+  if (n_moved > 0) {
+    print(paste0("Flattened ", n_moved, " files from organized subdirectories for restart"))
+  }
+
+  return(invisible(n_moved))
+}
