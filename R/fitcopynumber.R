@@ -1406,7 +1406,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
     # check if there are breakpoints within chrX
     if (nrow(sv)>0){
       # make sure all SV breakpoint positions are within the LogR data range and not outside of it  
-      svpos=sv[which((sv$pos > min(PCFinput$Position)) & (sv$pos < max(PCFinput$Position))),"pos"]
+      svpos=sort(sv[which((sv$pos > min(PCFinput$Position)) & (sv$pos < max(PCFinput$Position))),"pos"])
       breakpoints=c(min(PCFinput$Position),svpos,max(PCFinput$Position))
       PCF=data.frame()
       for (j in 1:(length(breakpoints)-1)) {
@@ -1688,12 +1688,21 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   
   print(paste("Number of rows merged =",nrow(SUBCLONESout)-nrow(outputDF)))
   
-  # Debug: log any segments with invalid coordinates for diagnosis
+  # Fix any segments with invalid coordinates (startpos > endpos) after merging
   bad_segs <- which(outputDF$startpos > outputDF$endpos)
   if (length(bad_segs) > 0) {
     warning(paste0("sample ", tumourname, ": ", length(bad_segs),
-                   " chrX segments have startpos > endpos after merging. Dumping details:"))
-    print(outputDF[bad_segs, c("chrom", "arm", "startpos", "endpos", "nSNPs", "subclonalCN", "rank")])
+                   " chrX segments have startpos > endpos after merging — swapping to fix."))
+    for (bs in bad_segs) {
+      warning(paste0("  rank ", outputDF$rank[bs],
+                     ": startpos=", outputDF$startpos[bs],
+                     " endpos=", outputDF$endpos[bs],
+                     " arm=", outputDF$arm[bs],
+                     " subclonalCN=", outputDF$subclonalCN[bs]))
+      tmp <- outputDF$startpos[bs]
+      outputDF$startpos[bs] <- outputDF$endpos[bs]
+      outputDF$endpos[bs] <- tmp
+    }
   }
   
   # Construct solution-specific filenames
@@ -1780,21 +1789,6 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   
   # ANDROGEN RECEPTOR LOCUS
   if (AR){
-    # Validate segment coordinates before foverlaps (which requires startpos <= endpos)
-    bad_rows <- which(outputDF$startpos > outputDF$endpos)
-    if (length(bad_rows) > 0) {
-      warning(paste0("sample ", tumourname, ": Found ", length(bad_rows),
-                     " chrX segments with startpos > endpos — swapping to fix:"))
-      for (br in bad_rows) {
-        warning(paste0("  row ", br, ": startpos=", outputDF$startpos[br],
-                       " endpos=", outputDF$endpos[br],
-                       " arm=", outputDF$arm[br],
-                       " subclonalCN=", outputDF$subclonalCN[br]))
-        tmp <- outputDF$startpos[br]
-        outputDF$startpos[br] <- outputDF$endpos[br]
-        outputDF$endpos[br] <- tmp
-      }
-    }
     data.table::setDT(ar)
     data.table::setkey(ar,"startpos","endpos")
     data.table::setDT(outputDF)
