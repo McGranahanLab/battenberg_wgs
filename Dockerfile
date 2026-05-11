@@ -57,9 +57,14 @@ RUN curl -fsSL --retry 10 -o /tmp/downloads/impute2.tgz https://mathgen.stats.ox
 
 RUN R -q -e 'install.packages(c("BiocManager"), repos="https://cloud.r-project.org")'
 
-RUN R -q -e 'install.packages(c("RColorBrewer", "data.table", "doParallel", "dplyr", "foreach", "ggplot2", "gridExtra", "gtools", "optparse", "readr", "R.utils"), repos="https://cloud.r-project.org")'
+RUN R -q -e 'install.packages(c("RColorBrewer", "argparse", "data.table", "doParallel", "dplyr", "foreach", "ggplot2", "gridExtra", "gtools", "optparse", "parallel", "readr", "R.utils", "stringr", "tidyr"), repos="https://cloud.r-project.org")'
 
-RUN R -q -e 'BiocManager::install(c("StructuralVariantAnnotation", "VariantAnnotation"), ask=FALSE, update=FALSE)'
+RUN mkdir -p /usr/local/lib/R/site-library && \
+  R -q -e 'options(repos="https://cloud.r-project.org"); \
+    install.packages("tidyverse", lib="/usr/local/lib/R/site-library", dependencies=TRUE)'
+ENV R_LIBS_SITE=/usr/local/lib/R/site-library
+
+RUN R -q -e 'BiocManager::install(c("GenomicRanges", "StructuralVariantAnnotation", "VariantAnnotation"), ask=FALSE, update=FALSE)'
 
 RUN curl -fsSL --retry 10 -o /tmp/downloads/copynumber.tar.gz https://github.com/igordot/copynumber/archive/refs/heads/master.tar.gz && \
     R CMD INSTALL /tmp/downloads/copynumber.tar.gz && \
@@ -72,7 +77,9 @@ RUN curl -fsSL --retry 10 -o /tmp/downloads/ascat.tar.gz https://github.com/VanL
     rm -rf /tmp/downloads/ascat /tmp/downloads/ascat.tar.gz
 
 RUN mkdir -p /opt/battenberg
-COPY . /opt/battenberg/
+
+RUN repo_url="https://github.com/McGranahanLab/battenberg_wgs.git" && \
+    git clone --depth 1 $repo_url /opt/battenberg
 
 RUN R CMD INSTALL /opt/battenberg
 
