@@ -4,8 +4,10 @@
 #' @param col_name wheter the midpoint of a beakpoint is used when the breakpoint (not SV) is not just one bp, only takes "mid" as input right now
 #' @author KT
 #' @export read.filter.gripps
-read.filter.gripps <- function(GRIPPS_SV_path, col_name = "mid"){
-  
+read.filter.gripps <- function(GRIPPS_SV_path, run_dir=NULL, col_name = "mid"){
+  if (is.null(run_dir)) {
+    run_dir = getwd()
+  }
   suppressPackageStartupMessages(require(VariantAnnotation))
   suppressPackageStartupMessages(require(StructuralVariantAnnotation))
   suppressPackageStartupMessages(require(dplyr))
@@ -78,7 +80,7 @@ read.filter.gripps <- function(GRIPPS_SV_path, col_name = "mid"){
   # prior_breakpoints_file <- paste(c(prior_breakpoints_file), collapse = "/")
   # prior_breakpoints_file <- paste0(prior_breakpoints_file, "/", tumour, ".gripss.filtered.somatic.txt")
 
-  prior_breakpoints_file <- "gripss.filtered.somatic.txt"
+  prior_breakpoints_file <- file.path(run_dir, "gripss.filtered.somatic.txt")
   write.table(all_df, prior_breakpoints_file, col.names = T, row.names = F, quote = F, sep = "\t")
   return(prior_breakpoints_file)
 }

@@ -1,66 +1,86 @@
-FROM ubuntu:20.04
+FROM rocker/r-ver:4.3.3
 
 USER root
 
-# Add dependencies
-RUN DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libxml2 libxml2-dev libcurl4-gnutls-dev r-cran-rgl git libssl-dev curl openjdk-8-jdk
+ENV DEBIAN_FRONTEND=noninteractive
 
-RUN mkdir /tmp/downloads
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    default-jre-headless \
+    gfortran \
+    git \
+    libbz2-dev \
+    libcurl4-openssl-dev \
+    libgit2-dev \
+    libglpk-dev \
+    liblzma-dev \
+    libncurses5-dev \
+    libncursesw5-dev \
+    libreadline-dev \
+    libssl-dev \
+    libxml2-dev \
+    make \
+    pkg-config \
+    samtools \
+    unzip \
+    wget \
+    xz-utils \
+    zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN curl -sSL -o tmp.tar.gz --retry 10 https://github.com/samtools/htslib/archive/1.7.tar.gz && \
-    mkdir /tmp/downloads/htslib && \
-    tar -C /tmp/downloads/htslib --strip-components 1 -zxf tmp.tar.gz && \
+RUN mkdir -p /tmp/downloads
+
+RUN curl -fsSL --retry 10 -o /tmp/downloads/htslib.tar.gz https://github.com/samtools/htslib/archive/1.7.tar.gz && \
+    mkdir -p /tmp/downloads/htslib && \
+    tar -C /tmp/downloads/htslib --strip-components 1 -zxf /tmp/downloads/htslib.tar.gz && \
     make -C /tmp/downloads/htslib && \
-    rm -f /tmp/downloads/tmp.tar.gz
+    rm -f /tmp/downloads/htslib.tar.gz
 
-ENV HTSLIB /tmp/downloads/htslib
+ENV HTSLIB=/tmp/downloads/htslib
 
-RUN curl -sSL -o tmp.tar.gz --retry 10 https://github.com/cancerit/alleleCount/archive/v4.0.0.tar.gz && \
-    mkdir /tmp/downloads/alleleCount && \
-    tar -C /tmp/downloads/alleleCount --strip-components 1 -zxf tmp.tar.gz && \
-    cd /tmp/downloads/alleleCount/c && \
-    mkdir bin && \
-    make && \
-    cp /tmp/downloads/alleleCount/c/bin/alleleCounter /usr/local/bin/. && \
-    cd /tmp/downloads && \
-    rm -rf /tmp/downloads/alleleCount /tmp/downloads/tmp.tar.gz
+RUN curl -fsSL --retry 10 -o /tmp/downloads/alleleCount.tar.gz https://github.com/cancerit/alleleCount/archive/v4.0.0.tar.gz && \
+    mkdir -p /tmp/downloads/alleleCount && \
+    tar -C /tmp/downloads/alleleCount --strip-components 1 -zxf /tmp/downloads/alleleCount.tar.gz && \
+    mkdir -p /tmp/downloads/alleleCount/c/bin && \
+    make -C /tmp/downloads/alleleCount/c && \
+    cp /tmp/downloads/alleleCount/c/bin/alleleCounter /usr/local/bin/alleleCounter && \
+    rm -rf /tmp/downloads/alleleCount /tmp/downloads/alleleCount.tar.gz
 
-RUN curl -sSL -o tmp.tar.gz --retry 10 https://mathgen.stats.ox.ac.uk/impute/impute_v2.3.2_x86_64_static.tgz && \
-    mkdir /tmp/downloads/impute2 && \
-    tar -C /tmp/downloads/impute2 --strip-components 1 -zxf tmp.tar.gz && \
-    cp /tmp/downloads/impute2/impute2 /usr/local/bin && \
-    rm -rf /tmp/downloads/impute2 /tmp/downloads/tmp.tar.gz
+RUN curl -fsSL --retry 10 -o /tmp/downloads/impute2.tgz https://mathgen.stats.ox.ac.uk/impute/impute_v2.3.2_x86_64_static.tgz && \
+    mkdir -p /tmp/downloads/impute2 && \
+    tar -C /tmp/downloads/impute2 --strip-components 1 -zxf /tmp/downloads/impute2.tgz && \
+    cp /tmp/downloads/impute2/impute2 /usr/local/bin/impute2 && \
+    chmod +x /usr/local/bin/impute2 && \
+    rm -rf /tmp/downloads/impute2 /tmp/downloads/impute2.tgz
 
-RUN mkdir -p /opt/R-libs
-RUN R -q -e 'install.packages("BiocManager"); BiocManager::install(c("devtools")); BiocManager::install(c("lifecycle", "gtools", "optparse","RColorBrewer","ggplot2","gridExtra","readr","doParallel","foreach", "splines", "GenomicRanges", "VariantAnnotation", "copynumber"), lib="/opt/R-libs")'
-RUN R -q -e 'devtools::install_github("Crick-CancerGenomics/ascat/ASCAT", lib="/opt/R-libs")'
+RUN R -q -e 'install.packages(c("BiocManager"), repos="https://cloud.r-project.org")'
+
+RUN R -q -e 'install.packages(c("RColorBrewer", "argparse", "data.table", "doParallel", "dplyr", "foreach", "ggplot2", "gridExtra", "gtools", "optparse", "parallel", "readr", "R.utils", "stringr", "tidyr"), repos="https://cloud.r-project.org")'
+
+RUN mkdir -p /usr/local/lib/R/site-library && \
+  R -q -e 'options(repos="https://cloud.r-project.org"); \
+    install.packages("tidyverse", lib="/usr/local/lib/R/site-library", dependencies=TRUE)'
+ENV R_LIBS_SITE=/usr/local/lib/R/site-library
+
+RUN R -q -e 'BiocManager::install(c("GenomicRanges", "StructuralVariantAnnotation", "VariantAnnotation"), ask=FALSE, update=FALSE)'
+
+RUN curl -fsSL --retry 10 -o /tmp/downloads/copynumber.tar.gz https://github.com/igordot/copynumber/archive/refs/heads/master.tar.gz && \
+    R CMD INSTALL /tmp/downloads/copynumber.tar.gz && \
+    rm -f /tmp/downloads/copynumber.tar.gz
+
+RUN curl -fsSL --retry 10 -o /tmp/downloads/ascat.tar.gz https://github.com/VanLoo-lab/ascat/archive/refs/heads/master.tar.gz && \
+    mkdir -p /tmp/downloads/ascat && \
+    tar -C /tmp/downloads/ascat --strip-components 1 -zxf /tmp/downloads/ascat.tar.gz && \
+    R CMD INSTALL /tmp/downloads/ascat/ASCAT && \
+    rm -rf /tmp/downloads/ascat /tmp/downloads/ascat.tar.gz
 
 RUN mkdir -p /opt/battenberg
-COPY . /opt/battenberg/
-RUN R -q -e 'install.packages("/opt/battenberg", repos=NULL, type="source", lib="/opt/R-libs")'
 
-# modify paths to reference files
-RUN cat /opt/battenberg/inst/example/battenberg_wgs.R | \
-    sed 's|IMPUTEINFOFILE = \".*|IMPUTEINFOFILE = \"/opt/battenberg_reference/1000genomes_2012_v3_impute/impute_info.txt\"|' | \
-    sed 's|G1000PREFIX = \".*|G1000PREFIX = \"/opt/battenberg_reference/1000genomes_2012_v3_loci/1000genomesAlleles2012_chr\"|' | \
-    sed 's|G1000PREFIX_AC = \".*|G1000PREFIX_AC = \"/opt/battenberg_reference/1000genomes_2012_v3_loci/1000genomesloci2012_chr\"|' | \
-    sed 's|GCCORRECTPREFIX = \".*|GCCORRECTPREFIX = \"/opt/battenberg_reference/1000genomes_2012_v3_gcContent/1000_genomes_GC_corr_chr_\"|' | \
-    sed 's|PROBLEMLOCI = \".*|PROBLEMLOCI = \"/opt/battenberg_reference/battenberg_problem_loci/probloci_270415.txt.gz\"|' | \
-    sed 's|REPLICCORRECTPREFIX = \".*|REPLICCORRECTPREFIX = \"/opt/battenberg_reference/battenberg_wgs_replic_correction_1000g_v3/1000_genomes_replication_timing_chr_\"|' > /usr/local/bin/battenberg_wgs.R
+RUN repo_url="https://github.com/McGranahanLab/battenberg_wgs.git" && \
+    git clone --depth 1 $repo_url /opt/battenberg
 
-RUN cp /opt/battenberg/inst/example/filter_sv_brass.R /usr/local/bin/filter_sv_brass.R
-RUN cp /opt/battenberg/inst/example/battenberg_cleanup.sh /usr/local/bin/battenberg_cleanup.sh
-
-#RUN cat /opt/battenberg/inst/example/battenberg_snp6.R | \
-#    sed 's|IMPUTEINFOFILE = \".*|IMPUTEINFOFILE = \"/opt/battenberg_reference/1000genomes_2012_v3_impute/impute_info.txt\"|' | \
-#    sed 's|G1000PREFIX = \".*|G1000PREFIX = \"/opt/battenberg_reference/1000genomes_2012_v3_loci/1000genomesAlleles2012_chr\"|' | \
-#    sed 's|SNP6_REF_INFO_FILE = \".*|SNP6_REF_INFO_FILE = \"/opt/battenberg_reference/battenberg_snp6/snp6_ref_info_file.txt\"|' > /usr/local/bin/battenberg_snp6.R
-
-## USER CONFIGURATION
-RUN adduser --disabled-password --gecos '' ubuntu && chsh -s /bin/bash && mkdir -p /home/ubuntu
-RUN echo ".libPaths(c(\"/opt/R-libs\", .libPaths()))" > /home/ubuntu/.Rprofile
-
-USER    ubuntu
-WORKDIR /home/ubuntu
+RUN R CMD INSTALL /opt/battenberg
 
 CMD ["/bin/bash"]

@@ -24,8 +24,10 @@ fit.copy.number(
   preset_psi = NA,
   read_depth = 30,
   analysis = "paired",
+  nthreads,
+  enhanced_grid_search = F,
   PURPLE_purity_path,
-  Tx421_WES_purity_path
+  External_WES_purity_path
 )
 }
 \arguments{

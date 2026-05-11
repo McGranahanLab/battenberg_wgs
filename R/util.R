@@ -1,6 +1,31 @@
 ########################################################################################
 # Generic table reader
 ########################################################################################
+#' Resolve an input file path, preferring the provided path and falling back to .gz
+#' @param filename Filename to resolve
+#' @return Existing path (plain or .gz), or the original filename if neither exists
+#' @noRd
+resolve_input_file = function(filename) {
+  if (file.exists(filename)) {
+    return(filename)
+  }
+  if (!grepl("\\.gz$", filename)) {
+    gz_filename = paste0(filename, ".gz")
+    if (file.exists(gz_filename)) {
+      return(gz_filename)
+    }
+  }
+  return(filename)
+}
+
+#' Check whether a file exists either as plain text or gzipped
+#' @param filename Filename to check
+#' @return Boolean
+#' @noRd
+file.exists.or.gz = function(filename) {
+  file.exists(resolve_input_file(filename))
+}
+
 #' Generic reading function using the readr R package, tailored for reading in genomic data
 #' @param file Filename of the file to read in
 #' @param header Whether the file contains a header (Default: TRUE)
@@ -13,6 +38,7 @@
 #' @export
 read_table_generic = function(file, header=T, row.names=F, stringsAsFactor=F, sep="\t", chrom_col=1, skip=0) {
   # stringsAsFactor is not needed here, but kept for legacy purposes
+  file = resolve_input_file(file)
   
   # Read in first line to obtain the header
   d = readr::read_delim(file=file, delim=sep, col_names=header, n_max=1, skip=skip, col_types = readr::cols())
@@ -36,12 +62,54 @@ read_table_generic = function(file, header=T, row.names=F, stringsAsFactor=F, se
   return(d)
 }
 
+#' Read and normalize prior breakpoint files
+#'
+#' Accepts either header style:
+#' - chromosome, position, or:
+#' - chr, pos
+#' and returns a data.frame containing all four columns for compatibility
+#' across segmentation, plotting and chrX calling paths.
+#' @param prior_breakpoints_file Path to a breakpoint file
+#' @return A data.frame with columns chromosome, position, chr, pos
+#' @noRd
+read_prior_breakpoints_file = function(prior_breakpoints_file) {
+  bkps = read.table(prior_breakpoints_file, header=TRUE, stringsAsFactors=FALSE)
+  names_lower = tolower(colnames(bkps))
+
+  chromosome_col = which(names_lower %in% c("chromosome", "chr"))
+  position_col = which(names_lower %in% c("position", "pos"))
+
+  if (length(chromosome_col) == 0 || length(position_col) == 0) {
+    stop(
+      "prior_breakpoints_file must contain chromosome/position columns ",
+      "(accepted aliases: chromosome|chr and position|pos)"
+    )
+  }
+
+  chromosome = as.character(bkps[[chromosome_col[1]]])
+  position = suppressWarnings(as.numeric(bkps[[position_col[1]]]))
+  if (all(is.na(position))) {
+    stop("prior_breakpoints_file position column could not be parsed as numeric")
+  }
+
+  normalized = data.frame(
+    chromosome=chromosome,
+    position=position,
+    stringsAsFactors=FALSE
+  )
+  normalized$chr = normalized$chromosome
+  normalized$pos = normalized$position
+  return(normalized)
+}
+
 #' Parser for logR data
 #' @param filename Filename of the file to read in
 #' @param header Whether the file contains a header (Default: TRUE)
 #' @return A data frame with logR content
 read_logr = function(filename, header=T) {
-  return(readr::read_tsv(file = filename, col_names = header, col_types = "cin"))
+  filename = resolve_input_file(filename)
+  #return(readr::read_tsv(file = filename, col_names = header, col_types = "cin"))
+  return(readr::read_delim(file = filename, delim = NULL, col_names = header, col_types = "cin"))
 }
 
 #' Parser for BAF data
@@ -49,21 +117,27 @@ read_logr = function(filename, header=T) {
 #' @param header Whether the file contains a header (Default: TRUE)
 #' @return A data frame with BAF content
 read_baf = function(filename, header=T) {
-  return(readr::read_tsv(file = filename, col_names = header, col_types = "cin"))
+  filename = resolve_input_file(filename)
+  #return(readr::read_tsv(file = filename, col_names = header, col_types = "cin"))
+  return(readr::read_delim(file = filename, delim = NULL, col_names = header, col_types = "cin"))
 }
 
 #' Parser for GC content reference data
 #' @param filename Filename of the file to read in
 #' @return A data frame with GC content
 read_gccontent = function(filename) {
-  return(readr::read_tsv(file=filename, skip = 1, col_names = F, col_types = "-cinnnnnnnnnnnn------"))
+  filename = resolve_input_file(filename)
+  #return(readr::read_tsv(file=filename, skip = 1, col_names = F, col_types = "-cinnnnnnnnnnnn------"))
+  return(readr::read_delim(file=filename, skip = 1, delim = NULL, col_names = F, col_types = "-cinnnnnnnnnnnn------"))
 }
 
 #' Parser for replication timing reference data
 #' @param filename Filename of the file to read in
 #' @return A data frame with replication timing
 read_replication = function(filename) {
-  return(readr::read_tsv(file=filename, col_types = paste0("ci", paste0(rep("n", 15), collapse = ""))))
+  filename = resolve_input_file(filename)
+  #return(readr::read_tsv(file=filename, col_types = paste0("ci", paste0(rep("n", 15), collapse = ""))))
+  return(readr::read_delim(file=filename, delim = NULL, col_types = paste0("ci", paste0(rep("n", 15), collapse = ""))))
 }
 
 #' Parser for BAFsegmented data
@@ -71,35 +145,45 @@ read_replication = function(filename) {
 #' @param header Whether the file contains a header (Default: TRUE)
 #' @return A data frame with BAFsegmented content
 read_bafsegmented = function(filename, header=T) {
-  return(readr::read_tsv(file = filename, col_names = header, col_types = "cinnn"))
+  filename = resolve_input_file(filename)
+  #return(readr::read_tsv(file = filename, col_names = header, col_types = "cinnn"))
+  return(readr::read_delim(file = filename, delim = NULL, col_names = header, col_types = "cinnn"))
 }
 
 #' Parser for imputed genotype data
 #' @param filename Filename of the file to read in
 #' @return A data frame with the imputed genotype output
 read_imputed_output = function(filename) {
-  return(readr::read_tsv(file = filename, col_names = c("snpidx", "rsidx", "pos", "ref", "alt", "hap1", "hap2"), col_types = "cciccii"))
+  filename = resolve_input_file(filename)
+  #return(readr::read_tsv(file = filename, col_names = c("snpidx", "rsidx", "pos", "ref", "alt", "hap1", "hap2"), col_types = "cciccii"))
+  return(readr::read_delim(file = filename, delim = NULL, col_names = c("snpidx", "rsidx", "pos", "ref", "alt", "hap1", "hap2"), col_types = "cciccii"))
 }
 
 #' Parser for allele frequencies data
 #' @param filename Filename of the file to read in
 #' @return A data frame with the alleleCounter output
 read_alleleFrequencies = function(filename) {
-  return(readr::read_tsv(file = filename, col_names = c("CHR", "POS", "Count_A", "Count_C", "Count_G", "Count_T", "Good_depth"), col_types = "ciiiiii", comment = "#"))
+  filename = resolve_input_file(filename)
+  #return(readr::read_tsv(file = filename, col_names = c("CHR", "POS", "Count_A", "Count_C", "Count_G", "Count_T", "Good_depth"), col_types = "ciiiiii", comment = "#"))
+  return(readr::read_delim(file = filename, delim = NULL, col_names = c("CHR", "POS", "Count_A", "Count_C", "Count_G", "Count_T", "Good_depth"), col_types = "ciiiiii", comment = "#"))
 }
 
 #' Parser for impute input data
 #' @param filename Filename of the file to read in
 #' @return A data frame with the input for impute
 read_impute_input = function(filename) {
-  return(readr::read_delim(file = filename, col_names = F, col_types = "ccicciii", delim = " "))
+  filename = resolve_input_file(filename)
+  #return(readr::read_delim(file = filename, col_names = F, col_types = "ccicciii", delim = " "))
+  return(readr::read_delim(file = filename, col_names = F, col_types = "ccicciii", delim = NULL))
 }
 
 #' Parser for beagle5 output data
 #' @param filename Filename of the file to read in
 #' @return A data frame with the beagle5 output
 read_beagle_output = function(filename) {
-  return(readr::read_tsv(file = filename, col_names = c("#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMP001"), col_types = "cicccccccc", comment = "#"))
+  filename = resolve_input_file(filename)
+  #return(readr::read_tsv(file = filename, col_names = c("#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMP001"), col_types = "cicccccccc", comment = "#"))
+  return(readr::read_delim(file = filename, delim = NULL, col_names = c("#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "SAMP001"), col_types = "cicccccccc", comment = "#"))
 }
 
 
@@ -283,6 +367,10 @@ cnfit_to_refit_suggestions = function(samplename, subclones_file, rho_psi_file, 
   subclones$len = subclones$endpos/1000000-subclones$startpos/1000000
   subclones$is_cna = subclones$nMaj1_A!=subclones$nMin1_A
   
+  #df[c("is_cna")][is.na(df[c("is_cna")])] <- FALSE
+  #print(subclones$len)
+  print(min_segment_size_mb)
+  print(subclones$is_cna)
   if (any(subclones$len > min_segment_size_mb & subclones$is_cna)) {
     # There are large scale alterations, save the top couple as suggestions
     rho_psi = read.table(rho_psi_file, header=T, stringsAsFactors=F)
@@ -335,13 +423,166 @@ cnfit_to_refit_suggestions = function(samplename, subclones_file, rho_psi_file, 
 }
 
 ########################################################################################
+# Parallel Computing Utilities
+########################################################################################
+#' Setup a cluster for parallel computing with optional debugging
+#' 
+#' This function creates a cluster and optionally enables worker output logging and verbose mode.
+#' When debug_parallel=TRUE, worker output is written to a timestamped log file for easier
+#' error diagnosis in parallel loops.
+#' 
+#' @param nthreads Number of threads/workers (Default: 1)
+#' @param libs Library paths to propagate to workers (Default: NULL, skips clusterCall)
+#' @param enable_debug Boolean to enable worker output logging (Default: FALSE)
+#' @return A list with elements: cluster (the cluster object) and worker_log (log file path or "")
+#' @noRd
+setup_cluster_for_debugging = function(nthreads, libs=NULL, enable_debug=FALSE) {
+  worker_log_file <- if(enable_debug) {
+    f <- paste0("battenberg_workers_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".log")
+    cat("✓ Worker debug log enabled:", f, "\n")
+    f
+  } else {
+    ""  # Suppress output in production
+  }
+  
+  clp = parallel::makeCluster(nthreads, outfile=worker_log_file, verbose=enable_debug)
+  doParallel::registerDoParallel(clp)
+  
+  # Optionally propagate library paths to workers
+  if(!is.null(libs)) {
+    parallel::clusterCall(clp, function(paths) .libPaths(paths), libs)
+  }
+  
+  if(enable_debug) {
+    parallel::clusterCall(clp, function() options(warn=1))  # Print warnings immediately
+  }
+  
+  return(list(cluster=clp, worker_log=worker_log_file))
+}
+
+########################################################################################
 # Other
 ########################################################################################
 #' Check if a file exists, if it doesn't, exit non-clean
 #' @noRd
 assert.file.exists = function(filename) {
-  if (!file.exists(filename)) {
-    warning(paste("Supplied file does not exist: ", filename, sep=""))
+  resolved_filename = resolve_input_file(filename)
+  if (!file.exists(resolved_filename)) {
+    warning(paste("Supplied file does not exist (checked plain and .gz): ", filename, sep=""))
     quit(save="no", status=1)
   }
+}
+
+########################################################################################
+# Output organization
+########################################################################################
+
+#' Classify output files into organized subdirectories
+#'
+#' Determines whether a file belongs in results/, intermediate/, plots/, or logs/
+#' based on filename patterns. Returns the target subdirectory name.
+#' @param filename Basename of the file to classify
+#' @return Character string: one of "results", "intermediate", "plots", "logs"
+#' @noRd
+classify_output_file <- function(filename) {
+  # Plots: all image files
+  if (grepl("\\.(png|pdf)$", filename, ignore.case = TRUE)) return("plots")
+
+  # Logs: worker logs and run parameter logs
+  if (grepl("\\.(log|log\\.gz)$", filename)) return("logs")
+  if (grepl("^battenberg_workers_", filename)) return("logs")
+
+  # Results: key deliverables
+  # subclones (final, not pre-masking _1 versions)
+  if (grepl("_subclones\\.txt", filename) && !grepl("_subclones_1", filename)) return("results")
+  if (grepl("_subclones_extended\\.txt", filename)) return("results")
+  if (grepl("_purity_ploidy\\.txt", filename)) return("results")
+  if (grepl("_all_solutions_rho_psi\\.txt", filename)) return("results")
+  if (grepl("_copynumber\\.txt", filename) || grepl("_copynumber_extended\\.txt", filename)) return("results")
+  if (grepl("_chrX_subclones\\.txt", filename) || grepl("_chrX_copynumber\\.txt", filename)) return("results")
+  if (grepl("_refit_suggestion\\.txt", filename)) return("results")
+  if (grepl("\\.BAFsegmented\\.txt", filename)) return("results")
+  if (grepl("\\.logRsegmented\\.txt", filename)) return("results")
+  if (grepl("_multisample_MSAI\\.txt", filename)) return("results")
+  if (grepl("_runclonalASCAT_rho_and_psi\\.txt", filename)) return("results")
+  if (grepl("_ascat_optimum_pair\\.RDS$", filename)) return("results")
+  if (grepl("_battenberg_run_params\\.log", filename)) return("logs")
+
+  # Everything else is intermediate
+  return("intermediate")
+}
+
+#' Organize output files into subdirectories
+#'
+#' Moves all files in the working directory into results/, intermediate/,
+#' plots/, and logs/ subdirectories based on filename patterns. Called at
+#' the end of the pipeline after all processing is complete.
+#'
+#' @return Invisible list of moved files by category
+#' @export
+organize_output_files <- function() {
+  subdirs <- c("results", "intermediate", "plots", "logs")
+  for (d in subdirs) {
+    dir.create(d, showWarnings = FALSE, recursive = TRUE)
+  }
+
+  # List all files in current directory (not in subdirectories, not directories)
+  all_files <- list.files(".", full.names = FALSE, recursive = FALSE)
+  all_files <- all_files[!file.info(all_files)$isdir]
+
+  moved <- list(results = character(0), intermediate = character(0),
+                plots = character(0), logs = character(0))
+
+  for (f in all_files) {
+    dest_type <- classify_output_file(f)
+    dst <- file.path(dest_type, f)
+    if (file.rename(f, dst)) {
+      moved[[dest_type]] <- c(moved[[dest_type]], f)
+    } else {
+      warning(paste0("Failed to move file: ", f, " -> ", dst))
+    }
+  }
+
+  for (type in names(moved)) {
+    n <- length(moved[[type]])
+    if (n > 0) print(paste0("Organized ", n, " files into ", type, "/"))
+  }
+
+  return(invisible(moved))
+}
+
+#' Flatten organized subdirectories back to the working directory
+#'
+#' Moves all files from results/, intermediate/, plots/, and logs/
+#' subdirectories back to the current working directory. Used at the
+#' start of a restart run to restore the flat layout expected by the
+#' pipeline stages.
+#'
+#' @return Invisible integer count of files moved
+#' @export
+flatten_organized_output <- function() {
+  subdirs <- c("results", "intermediate", "plots", "logs")
+  n_moved <- 0L
+
+  for (subdir in subdirs) {
+    if (!dir.exists(subdir)) next
+    files_in_subdir <- list.files(subdir, full.names = FALSE)
+    for (f in files_in_subdir) {
+      src <- file.path(subdir, f)
+      if (file.rename(src, f)) {
+        n_moved <- n_moved + 1L
+      } else {
+        warning(paste0("Failed to flatten file: ", src, " -> ", f))
+      }
+    }
+    # Remove empty subdirectory
+    remaining <- list.files(subdir)
+    if (length(remaining) == 0) unlink(subdir, recursive = TRUE)
+  }
+
+  if (n_moved > 0) {
+    print(paste0("Flattened ", n_moved, " files from organized subdirectories for restart"))
+  }
+
+  return(invisible(n_moved))
 }

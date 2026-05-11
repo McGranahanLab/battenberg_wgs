@@ -122,7 +122,6 @@ write_battenberg_phasing <- function(tumourname, SNPfiles, imputedHaplotypeFiles
   
   bafsegmented <- read_bafsegmented(bafsegmented_file)[, c("Chromosome", "Position", "BAFphased", "BAFseg")]
   bafsegmented <- split(x = bafsegmented[, c("Position", "BAFphased", "BAFseg")], f = bafsegmented$Chromosome)
-  
   for (i in 1:length(chrom_names)) {
     chrom = chrom_names[i] 
     # read allele counts and imputed haplotypes (for the actually used alleles & loci)
@@ -188,9 +187,7 @@ write_battenberg_phasing <- function(tumourname, SNPfiles, imputedHaplotypeFiles
 #' @param outprefix Prefix of the ouput multisample phasing files
 #' @author jdemeul
 #' @export
-get_multisample_phasing2 <- function(chrom, bbphasingprefixes, maxlag = 100, relative_weight_balanced = .25, outprefix) {
-
-  print('HELLOOO')
+get_multisample_phasing <- function(chrom, bbphasingprefixes, maxlag = 90, relative_weight_balanced = .25, outprefix) {
   vcfs <- lapply(X = paste0(bbphasingprefixes, chrom, ".vcf"), FUN = VariantAnnotation::readVcf)
   samplenames <- sapply(X = vcfs, FUN = function(x) VariantAnnotation::samples(VariantAnnotation::header(x)))
   
@@ -206,7 +203,8 @@ get_multisample_phasing2 <- function(chrom, bbphasingprefixes, maxlag = 100, rel
     singlevcf <- vcfs_common[[vcfidx]]
     sid <- VariantAnnotation::samples(VariantAnnotation::header(singlevcf))
     adddf <- S4Vectors::DataFrame(Major = VariantAnnotation::geno(singlevcf)$GT[,1], #Major = as.integer(ifelse(test = grepl(pattern = "|", x = geno(singlevcf)$GT, fixed = T), substr(x = geno(singlevcf)$GT, 1, 1), NA)),
-                       BAF = VariantAnnotation::geno(singlevcf)$AD[,1,2]/BiocGenerics::rowSums(VariantAnnotation::geno(singlevcf)$AD[,1,]),
+                       #BAF = VariantAnnotation::geno(singlevcf)$AD[,1,2]/BiocGenerics::rowSums(VariantAnnotation::geno(singlevcf)$AD[,1,]),
+                       BAF = VariantAnnotation::geno(singlevcf)$AD[,1,2]/rowSums(VariantAnnotation::geno(singlevcf)$AD[,1,]),
                        PS = VariantAnnotation::geno(singlevcf)$PS[,1])
     colnames(adddf) <- paste0(sid, "_", colnames(adddf))
     S4Vectors::mcols(loci) <- cbind(S4Vectors::mcols(loci), adddf)
@@ -224,8 +222,29 @@ get_multisample_phasing2 <- function(chrom, bbphasingprefixes, maxlag = 100, rel
                                                                                                  FUN = function(x, lag) abs(diff(as.integer(substr(x,1,1)), lag = lag)), lag = lag))
     
     # check whether all are phased, note that the filter takes into account past values only here! So needs to be shifted in next step
-    evidencelist[[lag]] <- apply(MARGIN = 2, X = S4Vectors::mcols(loci)[,grep(pattern = "Major", x = colnames(S4Vectors::mcols(loci)))],
-                                 FUN = function(x, lag) filter(x = grepl(pattern = "|", x = x, fixed = T), filter = rep(1, lag + 1), sides = 1) == lag+1, lag = lag)
+    #evidencelist[[lag]] <- apply(MARGIN = 2, X = S4Vectors::mcols(loci)[,grep(pattern = "Major", x = colnames(S4Vectors::mcols(loci)))],
+    #                             FUN = function(x, lag) dplyr::filter(x = grepl(pattern = "|", x = x, fixed = T), filter = rep(1, lag + 1), sides = 1) == lag+1, lag = lag)
+	evidencelist[[lag]] <- apply(
+	  MARGIN = 2, 
+	  X = S4Vectors::mcols(loci)[, grep(pattern = "Major", x = colnames(S4Vectors::mcols(loci)))],
+	  FUN = function(x, lag) {
+		# First, find positions where the pattern "|" exists
+		logical_vector <- grepl(pattern = "|", x = x, fixed = TRUE)
+                numeric_vector <- as.numeric(logical_vector)
+                result <- rep(FALSE, length(numeric_vector))
+
+                if (length(numeric_vector) > lag) {
+		  # Then apply time series smoothing using stats::filter
+		  smoothed <- stats::filter(x = numeric_vector, filter = rep(1, lag + 1), sides = 1)
+                  smoothed[is.na(smoothed)] <- 0
+		
+		  # Check where the smoothed values equal lag+1
+		  result[1:length(smoothed)] <- (smoothed == lag + 1)
+                } 
+		return(result)
+	  }, 
+	  lag = lag
+	)
     # and they have the same PS
     # evidencelist[[lag]] <- (evidencelist[[lag]][-1,] * rbind(matrix(NA, nrow = lag-1, ncol = length(vcfs_common)), apply(MARGIN = 2, X = mcols(loci)[,grep(pattern = "PS", x = colnames(mcols(loci)))],
     #                                                 FUN = function(x, lag) diff(x = x, lag = lag) == 0, lag = lag))) == 1
@@ -282,10 +301,15 @@ get_multisample_phasing2 <- function(chrom, bbphasingprefixes, maxlag = 100, rel
 #' @param plotting Should the multisample phasing plots be made? (Default: TRUE)
 #' @author jdemeul
 #' @export
-call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumournames, plotting = T, RHO, PSI) {
+call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumournames, plotting = T, RHO = NULL, PSI = NULL, outdir = './') {
+  
+  if (!grepl(pattern = "/$", x = outdir)) outdir = paste0(outdir, "/")
 
-  # compile all CN results
-  subclonescat <- lapply(X = subclonesfiles, FUN = function(x) read.delim(file = x, as.is = T))
+  # compile all CN results (resolve .gz paths if needed)
+  subclonescat <- lapply(X = subclonesfiles, FUN = function(x) {
+    f <- resolve_input_file(x)
+    read.delim(file = f, as.is = T)
+  })
   imbalancedregions <- do.call(rbind, subclonescat)
   # add sample identifiers
   imbalancedregions$sampleid <- rep(x = tumournames, sapply(X = subclonescat, FUN = nrow))
@@ -310,13 +334,14 @@ call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumour
   
   # for every chromosome with imbalance
   for (i in 1:length(chrom_names)) {
-    chrom = chrom_names[i]
+    chrom = as.character(chrom_names[i])
     # load loci.RDS file and simplify genotype formatting
     loci <- readRDS(file = paste0(rdsprefix, chrom, "_loci.RDS"))
     S4Vectors::mcols(loci)[,paste0(tumournames, "_Major")] <- S4Vectors::DataFrame(apply(X = S4Vectors::mcols(loci)[,paste0(tumournames, "_Major")],
                                                                     MARGIN = 2, FUN = function(x) as.numeric(substr(x = x, start = 1, stop = 1))))
     
-    if (length(imbalancedregions_disj[[chrom]]) > 0) {
+    #if (length(imbalancedregions_disj[[chrom]]) > 0) {
+    if (chrom %in% names(imbalancedregions_disj)) {
       # split loci by abberrated region, compare only ranges to avoid chr naming scheme mismatch
       locioverlaps <- IRanges::findOverlaps(query = IRanges::ranges(imbalancedregions_disj[[chrom]]), subject = IRanges::ranges(loci))
       imballoci <- split(x = loci[S4Vectors::subjectHits(locioverlaps)], f = S4Vectors::queryHits(locioverlaps), drop = F)
@@ -332,7 +357,11 @@ call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumour
       imbalancedregions_disj[[chrom]]$frac_consensus <- sapply(X = frac_consensus, FUN = function(x) paste0(names(x), "=", round(x, digits = 2), collapse = ";"))
       imbalancedregions_disj[[chrom]]$msai <- sapply(X = frac_consensus, FUN = function(x) max(x, na.rm = T) - min(x, na.rm = T) > .9)
       
-      msaidf <- GenomicRanges::as.data.frame(imbalancedregions_disj[[chrom]][imbalancedregions_disj[[chrom]]$msai])
+      if (length(GenomicRanges::mcols(imbalancedregions_disj[[chrom]])$msai) > 0) {
+        msaidf <- GenomicRanges::as.data.frame(imbalancedregions_disj[[chrom]][GenomicRanges::mcols(imbalancedregions_disj[[chrom]])$msai])
+      } else {
+        msaidf <- data.frame()
+      }
     } else {
       msaidf <- data.frame()
     }
@@ -354,15 +383,75 @@ call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumour
         p1 <- p1 + ggplot2::geom_point(data = df1, mapping = ggplot2::aes(x = pos, y = BAF), alpha = .6, colour = "#ef8a62", shape = 46, show.legend = F) + ggplot2::theme_minimal()
         p1 <- p1 + ggplot2::labs(x = "Position", y = "BAF", title = paste0(tumour, ": multisample phasing chr", chrom))
         
-        ggplot2::ggsave(filename = paste0(tumour, "_psi", PSI, "_rho", RHO ,"_multisample_phasing_chr", chrom, ".png"), plot = p1, width = 20, height = 5)
+        ggplot2::ggsave(filename = paste0(outdir, tumour, "_psi", PSI, "_rho", RHO ,"_multisample_phasing_chr", chrom, ".png"), plot = p1, width = 20, height = 5)
       }
     }
   }
 
   # write out final MSAI dataframe
   msaiout <- GenomicRanges::as.data.frame(unlist(imbalancedregions_disj, use.names = F))
-  write.table(x = msaiout[, -c(4:6)], file = paste0("psi", PSI, "_rho", RHO, "_multisample_MSAI.txt"), row.names = F, sep = "\t", quote = F)
+  list_cols <- sapply(msaiout, is.list)
+  for (col in names(msaiout)[list_cols]) {
+    msaiout[[col]] <- sapply(msaiout[[col]], function(x) paste(x, collapse=","))
+  }
+  out_clean = msaiout[, c("seqnames","start","end","frac_consensus","msai")]
+  if(is.null(PSI) | is.null(RHO)) {
+    PSI_RHO = ""
+  } else { PSI_RHO = paste0("psi_", PSI, "_rho_", RHO, "_") }
+  write.table(x = out_clean, file = paste0(outdir, PSI_RHO, "multisample_MSAI.txt"), row.names = F, sep = "\t", quote = F)
   return(NULL)
 }
 
 
+#' Run MSAI detection using selected solutions for each sample
+#'
+#' Standalone function to assess mirrored subclonal allelic imbalance (MSAI) after
+#' solutions have been reviewed and selected for each sample. Intended to be called
+#' after the main Battenberg pipeline has finished and the user has chosen which
+#' purity/ploidy solution to use per sample.
+#'
+#' @param samplenames Character vector of sample names (tumour identifiers).
+#' @param normalname Character string, name of the matched normal used during the Battenberg run.
+#' @param subclonesfiles Character vector of paths to the selected _subclones.txt (or .txt.gz) file
+#'   for each sample, in the same order as samplenames.
+#' @param chrom_names Character vector of chromosome names to assess (e.g. c("1","2",...,"22")).
+#' @param rho Numeric, purity value to use in output file naming.
+#' @param psi Numeric, ploidy value to use in output file naming.
+#' @param plotting Logical, whether to generate per-sample multisample phasing plots (Default: TRUE).
+#' @param workdir Optional working directory. If provided, setwd() is called before running. Default: NULL.
+#' @export
+run_MSAI <- function(samplenames, normalname, subclonesfiles, chrom_names,
+                     rho, psi, plotting = TRUE, workdir = NULL) {
+
+  if (length(samplenames) < 2) {
+    stop("MSAI requires at least 2 samples")
+  }
+  if (length(samplenames) != length(subclonesfiles)) {
+    stop("samplenames and subclonesfiles must have the same length")
+  }
+
+  if (!is.null(workdir)) {
+    oldwd <- setwd(workdir)
+    on.exit(setwd(oldwd))
+  }
+
+  # Resolve .gz paths
+  resolved_files <- sapply(subclonesfiles, function(f) {
+    rf <- resolve_input_file(f)
+    if (!file.exists(rf)) {
+      stop(paste0("Subclones file not found: ", f))
+    }
+    rf
+  })
+
+  rdsprefix <- paste0(normalname, "_multisample_haplotypes_chr")
+
+  call_multisample_MSAI(rdsprefix = rdsprefix,
+                        subclonesfiles = resolved_files,
+                        chrom_names = chrom_names,
+                        tumournames = samplenames,
+                        plotting = plotting,
+                        RHO = rho,
+                        PSI = psi,
+                        outdir = paste0(workdir, "/"))
+}

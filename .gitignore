@@ -1,3 +1,6 @@
+/doc/
+/Meta/
 .DS_Store
 .history
 integration_test
+temp

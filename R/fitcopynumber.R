@@ -25,12 +25,11 @@
 #' @param analysis A String representing the type of analysis to be run, this determines whether the distance figure is produced (Default paired)
 #' @author dw9, sd11
 #' @export
-fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmented, inputfile.baf, inputfile.logr, dist_choice, ascat_dist_choice, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1,  max.rho=1.0, min.goodness=63, uninformative_BAF_threshold=0.51, gamma_param=1, use_preset_rho_psi=F, preset_rho=NA, preset_psi=NA, read_depth=30, analysis="paired", PURPLE_purity_path, Tx421_WES_purity_path) {
-  
+fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmented, inputfile.baf, inputfile.logr, dist_choice, ascat_dist_choice, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1,  max.rho=1.0, min.goodness=63, uninformative_BAF_threshold=0.51, gamma_param=1, use_preset_rho_psi=F, preset_rho=NA, preset_psi=NA, read_depth=30, analysis="paired", nthreads, enhanced_grid_search=F, PURPLE_purity_path, External_WES_purity_path) {
+    
   assert.file.exists(inputfile.baf.segmented)
   assert.file.exists(inputfile.baf)
   assert.file.exists(inputfile.logr)
-  
   # Check for enough options supplied for rho and psi
   if ((max.ploidy - min.ploidy) < 0.05) {
     stop(paste("Supplied ploidy range must be larger than 0.05: ", min.ploidy, "-", max.ploidy, sep=""))
@@ -87,7 +86,7 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
     chr.BAF.data = baf_split[[chr]]
     
     # Skip the rest if there is no data for this chromosome
-    if(nrow(chr.BAF.data)==0){ next }
+    if(is.null(chr.BAF.data) || nrow(chr.BAF.data)==0){ next }
     # Match segments with chromosome position
     chr.segmented.BAF.data = baf_segmented_split[[chr]]
     indices = match(chr.segmented.BAF.data[,2],chr.BAF.data$Position )
@@ -161,15 +160,21 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
     copynumberprofile.outfile=paste(outputfile.prefix, "runASCAT_copynumberprofile.png", sep="", collapse="") # kjd 20-2-2014
     nonroundedprofile.outfile=paste(outputfile.prefix, "runASCAT_nonroundedprofile.png", sep="", collapse="") # kjd 20-2-2014
     cnaStatusFile = paste(outputfile.prefix, "runASCAT_copynumber_solution_status.txt", sep="", collapse="")
-    
-    ascat_optimum_pair = runASCAT(logR, 1-BAF.data[,3], segLogR, segBAF, chr.segs, ascat_dist_choice,distance.outfile, copynumberprofile.outfile, nonroundedprofile.outfile, cnaStatusFile=cnaStatusFile, gamma=gamma_param, allow100percent=T, 
+        
+    if(enhanced_grid_search) {
+      ascat_optimum_pair = runASCAT_enhanced(logR, 1-BAF.data[,3], segLogR, segBAF, chr.segs, ascat_dist_choice,distance.outfile, copynumberprofile.outfile, nonroundedprofile.outfile, cnaStatusFile=cnaStatusFile, gamma=gamma_param, allow100percent=T, reliabilityFile=NA, min.ploidy=min.ploidy, max.ploidy=max.ploidy, min.rho=min.rho, max.rho=max.rho, min.goodness, chr.names=chr.names, analysis=analysis, uninformative_BAF_threshold=uninformative_BAF_threshold, verbose=TRUE)
+    } else {
+      ascat_optimum_pair = runASCAT(logR, 1-BAF.data[,3], segLogR, segBAF, chr.segs, ascat_dist_choice,distance.outfile, copynumberprofile.outfile, nonroundedprofile.outfile, cnaStatusFile=cnaStatusFile, gamma=gamma_param, allow100percent=T, 
                                   reliabilityFile=NA, min.ploidy=min.ploidy, max.ploidy=max.ploidy, min.rho=min.rho, max.rho=max.rho, min.goodness, 
                                   chr.names=chr.names, analysis=analysis) # kjd 4-2-2014
+    }
   }
-  
-  
+    
+  distance.outfile=paste(outputfile.prefix,"second_distance.png",sep="",collapse="") # kjd 20-2-2014
+  copynumberprofile.outfile=paste(outputfile.prefix,"second_copynumberprofile.png",sep="",collapse="") # kjd 20-2-2014
+  nonroundedprofile.outfile=paste(outputfile.prefix,"second_nonroundedprofile.png",sep="",collapse="") # kjd 20-2-2014
   save(ascat_optimum_pair, file = paste0(outputfile.prefix, "ascat_optimum_pair.RDS")) #KT
-  
+    
   # All is set up, now run ASCAT to obtain a clonal copynumber profile
   
   # KT: run_clonal_ASCAT needs to be run for each alternative solution
@@ -178,44 +183,93 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   # so let's iterate over that, make sure format stays same
   # and also add solutions from PURPLE and run over those
   # and also run over manual QC TRACERx421 WES solutions
-  # add the PURPLE and Tx421 WES solutions to the alternative solution path
+  # add the PURPLE and External WES solutions to the alternative solution path
   
+  purple_solution <- NULL
+  wes_solution <- NULL
+
   if(!is.null(PURPLE_purity_path)){
-    purple_solution <- read.table(PURPLE_purity_path, head = T, sep = "\t")
-    purple_solution <- purple_solution[, c("purity", "ploidy")]
-    colnames(purple_solution) <- c("rho", "psi")
-    purple_solution$solution_type <- "purpleDefault"
+    if (!file.exists(PURPLE_purity_path)) {
+      warning(paste0(
+        "PURPLE purity file not found: '", PURPLE_purity_path, "'. ",
+        "Continuing without PURPLE default solution."
+      ))
+    } else {
+    purple_tmp <- read.table(PURPLE_purity_path, head = T, sep = "\t")
+    if (nrow(purple_tmp) > 0) {
+      purple_tmp <- purple_tmp[, c("purity", "ploidy"), drop = FALSE]
+      colnames(purple_tmp) <- c("rho", "psi")
+      purple_tmp$solution_type <- "purpleDefault"
+      # Ensure consistent column order for rbind compatibility
+      purple_solution <- purple_tmp[, c("psi", "rho", "solution_type"), drop = FALSE]
+    } else {
+      warning(paste0(
+        "No rows found in PURPLE purity file. ",
+        "Expected sample '", samplename, "' in file '", PURPLE_purity_path, "'. ",
+        "Continuing without PURPLE default solution."
+      ))
+    }
+    }
   }
 
-  if(!is.null(Tx421_WES_purity_path)){
-  wes_solution <- read.table(Tx421_WES_purity_path, head = T, sep = "\t")
-  wes_solution <- wes_solution[wes_solution$region == samplename, ]
-
-    if(nrow(wes_solution) > 0){
-      wes_solution <- wes_solution[, c("Ploidy", "ACF")]
-      colnames(wes_solution) <- c("psi", "rho")
-      wes_solution$solution_type <- "WESmanualQC"
+  if(!is.null(External_WES_purity_path)){
+    if (!file.exists(External_WES_purity_path)) {
+      warning(paste0(
+        "External WES purity file not found: '", External_WES_purity_path, "'. ",
+        "Continuing without WES manual QC solution."
+      ))
+    } else {
+    wes_tmp <- read.table(External_WES_purity_path, head = T, sep = "\t")
+    # saniteze sample name. Assume hashes are always separated by double dash:
+    samplename_sanitized <- gsub("--.*", "", samplename)
+    wes_tmp <- wes_tmp[wes_tmp$region == samplename_sanitized, , drop = FALSE]
+    if (nrow(wes_tmp) > 0) {
+      wes_tmp <- wes_tmp[, c("Ploidy", "ACF"), drop = FALSE]
+      colnames(wes_tmp) <- c("psi", "rho")
+      wes_tmp$solution_type <- "WESmanualQC"
+      # Ensure consistent column order for rbind compatibility
+      wes_solution <- wes_tmp[, c("psi", "rho", "solution_type"), drop = FALSE]
+    } else {
+      warning(paste0(
+        "No matching rows for sample '", samplename, "' in External WES purity file '", External_WES_purity_path, "'. ",
+        "Continuing without WES manual QC solution."
+      ))
+    }
     }
   }
   
-    if(is.null(PURPLE_purity_path)){
-      purple_solution <- wes_solution
-    }
-  
-  
-  if(all(!is.null(PURPLE_purity_path), !is.null(Tx421_WES_purity_path))){
-    purple_solution <- rbind(purple_solution, wes_solution)
-  }
+
   
   # add this to the alternative solutions but make sure where the different solutions come from
   # actually let's just restructure the data frame to iterate over, so that it also contains the
   # battenberg default solution
   default_solution_df      <- data.frame(psi = ascat_optimum_pair$psi, rho = ascat_optimum_pair$rho, solution_type = "battenbergDefault")
   alternative_solutions_df <- data.frame(ascat_optimum_pair$alternative_solutions)
-  alternative_solutions_df <- data.frame(psi = alternative_solutions_df$psi_ploidy, rho = alternative_solutions_df$rho_aberrant_cell_fraction, solution_type = "battenbergAlternative")
+  if (nrow(alternative_solutions_df) > 0) {
+    alternative_solutions_df <- data.frame(psi = alternative_solutions_df$psi_ploidy, rho = alternative_solutions_df$rho_aberrant_cell_fraction, solution_type = "battenbergAlternative")
+  } else {
+    alternative_solutions_df <- data.frame(psi = numeric(0), rho = numeric(0), solution_type = character(0))
+  }
   
-  all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df, purple_solution)
+  # Ensure consistent column order for rbind operations
+  default_solution_df <- default_solution_df[, c("psi", "rho", "solution_type"), drop = FALSE]
+  alternative_solutions_df <- alternative_solutions_df[, c("psi", "rho", "solution_type"), drop = FALSE]
   
+  extra_solutions <- NULL
+  if (!is.null(purple_solution) && !is.null(wes_solution)) {
+    extra_solutions <- rbind(purple_solution, wes_solution)
+  } else if (!is.null(purple_solution)) {
+    extra_solutions <- purple_solution
+  } else if (!is.null(wes_solution)) {
+    extra_solutions <- wes_solution
+  }
+
+  if (!is.null(extra_solutions)) {
+    all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df, extra_solutions)
+  } else {
+    all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df)
+  }
+    
   num_alt_sol <- nrow(all_alternative_solutions)
   
   print(paste0("running clonal ASCAT for ", num_alt_sol, " alternative soltions"))
@@ -235,11 +289,11 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
     nonroundedprofile.outfile=paste(outputfile.prefix,plot_name, "runclonalASCAT_nonroundedprofile.png",sep="",collapse="") # kjd 20-2-2014
     
     out = run_clonal_ASCAT( logR, 1-BAF.data[,3], segLogR, segBAF, chr.segs, matched.segmented.BAF.data, ascat_optimum_pair_sol, dist_choice, distance.outfile, copynumberprofile.outfile, nonroundedprofile.outfile, gamma_param=gamma_param, read_depth, uninformative_BAF_threshold, allow100percent=T, reliabilityFile=NA,  psi_min_initial=min.ploidy, psi_max_initial=max.ploidy, rho_min_initial=min.rho, rho_max_initial=max.rho, chr.names=chr.names) # kjd 21-2-2014
-    
+      
     ascat_optimum_pair_fraction_of_genome = out$output_optimum_pair_without_ref
     ascat_optimum_pair_ref_seg = out$output_optimum_pair
     is.ref.better = out$is.ref.better
-    
+      
     # Save rho, psi and ploidy for future reference
     rho_psi_output = data.frame(rho = c(ascat_optimum_pair_sol$rho,ascat_optimum_pair_fraction_of_genome$rho,ascat_optimum_pair_ref_seg$rho),psi = c(ascat_optimum_pair_sol$psi,ascat_optimum_pair_fraction_of_genome$psi,ascat_optimum_pair_ref_seg$psi), ploidy = c(ascat_optimum_pair_sol$psi,ascat_optimum_pair_fraction_of_genome$ploidy,ascat_optimum_pair_ref_seg$ploidy), distance = c(NA,out$distance_without_ref,out$distance), is.best = c(NA,!is.ref.better,is.ref.better),row.names=c("ASCAT","FRAC_GENOME","REF_SEG"))
     write.table(rho_psi_output,paste(outputfile.prefix, plot_name, "runclonalASCAT_rho_and_psi.txt",sep=""),quote=F,sep="\t")
@@ -269,22 +323,26 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
 #' @param output.gw.figures.prefix Prefix of the filenames for the genome wide copy number figures
 #' @param chr_names Vector of allowed chromosome names
 #' @param masking_output_file Filename of where the masking details need to be written. Masking is performed to remove very high copy number state segments
-#' @param max_allowed_state The maximum CN state allowed (Default 100)
+#' @param max_allowed_state The maximum CN state allowed (Default 250)
+#' @param cn_upper_limit The maximum CN that can be called (Default 1000)
 #' @param prior_breakpoints_file A two column file with prior breakpoints, possibly from structural variants. This file must contain two columns: chromosome and position. These are used when making the figures
 #' @param gamma Technology specific scaling parameter for LogR (Default 1)
 #' @param segmentation.gamma Legacy parameter that is no longer used (Default NA)
 #' @param siglevel Threshold under which a p-value becomes significant. When it is significant a second copy number state will be fitted (Default 0.05)
 #' @param maxdist Slack in BAF space to allow a segment to be off it's optimum before becoming significant. A segment becomes significant very quickly when a breakpoint is missed, this parameter alleviates the effect (Default 0.01)
 #' @param noperms The number of permutations to be run when bootstrapping the confidence intervals on the copy number state of each segment (Default 1000)
+#' @param cn_confidence_level Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)
 #' @param seed Seed to set when performing bootstrapping (Default: Current time)
 #' @param calc_seg_baf_option Various options to recalculate the BAF of a segment. Options are: 1 - median, 2 - mean, 3 - ifelse median==0|1, mean, median. (Default: 3)
+#' @param RHO Optional rho value used in solution-specific output naming (Default: NA)
+#' @param PSI Optional psi value used in solution-specific output naming (Default: NA)
+#' @param solution_type Optional solution label used in solution-specific output naming (Default: NULL)
 #' @author dw9, sd11
 #' @export
 
-callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.file, output.file, output.figures.prefix, output.gw.figures.prefix, chr_names, masking_output_file, max_allowed_state=250, prior_breakpoints_file=NULL, gamma=1, segmentation.gamma=NA, siglevel=0.05, maxdist=0.01, noperms=1000, seed=as.integer(Sys.time()), calc_seg_baf_option=3) {
+callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.file, output.file, output.figures.prefix, output.gw.figures.prefix, chr_names, masking_output_file, max_allowed_state=250, cn_upper_limit=1000, prior_breakpoints_file=NULL, gamma=1, segmentation.gamma=NA, siglevel=0.05, maxdist=0.01, noperms=1000, cn_confidence_level=0.95, seed=as.integer(1), calc_seg_baf_option=3, RHO=NA, PSI=NA, solution_type=NULL) {
   
   set.seed(seed)
-  
   # Load rho/psi/goodness of fit
   res = load.rho.psi.file(rho.psi.file)
   rho = res$rho
@@ -329,15 +387,19 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   ################################################################################################
   # Determine copy number for each segment
   ################################################################################################
-  res = determine_copynumber(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms)
+  res = determine_copynumber(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms, cn_upper_limit, cn_confidence_level=cn_confidence_level)
   subcloneres = res$subcloneres
-  write.table(subcloneres, gsub(".txt", "_1.txt", output.file), quote=F, col.names=T, row.names=F, sep="\t")
-  
+  #write.table(subcloneres, gsub(".txt", "_1.txt", output.file), quote=F, col.names=T, row.names=F, sep="\t")
+  write.table(subcloneres, paste0(tools::file_path_sans_ext(output.file),"_1.",tools::file_ext(output.file),sep=""), quote=F, col.names=T, row.names=F, sep="\t")  
+    # use this file to calculate other confidence levels post hoc:
+  if (!is.null(res$segment_bootstraps)) {
+    write.table(res$segment_bootstraps, sub("\\.txt$", "_1_copy_number_bootstraps.txt", output.file), quote=F, col.names=T, row.names=F, sep="\t")
+  }
   # Scan the segments for cases that should be merged
   res = merge_segments(subcloneres, BAFvals, LogRvals, rho, psi, gamma, calc_seg_baf_option)
   BAFvals = res$bafsegmented
   
-  res = determine_copynumber(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms)
+  res = determine_copynumber(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms, cn_upper_limit, cn_confidence_level=cn_confidence_level)
   subcloneres = res$subcloneres
   BAFpvals = res$BAFpvals
   
@@ -353,8 +415,47 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   
   # Write the final copy number profile 
   # NAP: generating two output files: first reporting solution A and the second reporting alternative solutions (B to F)
-  write.table(subcloneres[,1:17], output.file, quote=F, col.names=T, row.names=F, sep="\t")
-  write.table(subcloneres[,c(1:7,18:67)], gsub(".txt","_alternatives.txt",output.file), quote=F, col.names=T, row.names=F, sep="\t")
+  main_columns = c("chr","startpos","endpos","BAF","pval","LogR","ntot","nMajor","nMinor")
+  solution_A_columns = c("nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A","SDfrac_A","SDfrac_A_BS","frac1_A_0.025","frac1_A_0.975")
+
+  write.table(subcloneres[,c(main_columns, solution_A_columns)], output.file, quote=F, col.names=T, row.names=F, sep="\t")
+
+  #write.table(subcloneres, gsub(".txt","_extended.txt",output.file), quote=F, col.names=T, row.names=F, sep="\t")
+  write.table(subcloneres, paste0(tools::file_path_sans_ext(output.file),"_extended.",tools::file_ext(output.file),sep=""), quote=F, col.names=T, row.names=F, sep="\t")
+    # use this file to calculate other confidence levels post hoc:
+  if (!is.null(res$segment_bootstraps)) {
+    write.table(res$segment_bootstraps, sub("\\.txt$", "_copy_number_bootstraps.txt", output.file), quote=F, col.names=T, row.names=F, sep="\t")
+  }
+  # NAP - November 2023
+  # Recalculate PGA.is.clonal to match the final copy number profile in copynumber.txt file (previously subclones.txt file)
+  subcloneres$length = subcloneres$endpos-subcloneres$startpos
+  subcloneres_subclonal = subcloneres[which(subcloneres$frac1_A<1),]
+  diploid = which(subcloneres$nMaj1_A==1 & subcloneres$nMin1_A==1 & subcloneres$frac1_A==1)
+  # NAP - June 2025 
+  # Check 'diploid' length for rare edge cases
+  if (length(diploid) > 0) {
+    cna = subcloneres[-diploid,]
+  } else {
+    cna = subcloneres
+    print("No diploid region found in copy number profile - likely due to WGD or error in fitting copy number in rare cases") 
+  }
+  
+  if(nrow(cna) == 0 || sum(cna$length) == 0) {
+    # No copy number alterations found
+    goodness <- 1.0  # 100% clonal (no CNAs to be subclonal)
+    print("No copy number alterations detected - setting PGA.is.clonal to 100%\n")
+  } else if(nrow(subcloneres_subclonal) == 0) {
+    # No subclonal segments
+    goodness <- 1.0  # 100% clonal
+    print("No subclonal segments detected - setting PGA.is.clonal to 100%\n")
+  } else {
+    subclonal_fraction <- sum(subcloneres_subclonal$length) / sum(cna$length)
+    goodness <- 1 - subclonal_fraction
+  
+    # Ensure goodness is within valid range [0,1]
+    goodness <- max(0, min(1, goodness))
+  }
+  print(paste0("PGA.is.clonal = ",sprintf("%2.1f",goodness*100),"%"))
   
   ################################################################################################
   # Make a plot per chromosome
@@ -362,7 +463,7 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   # Collapse the BAFsegmented into breakpoints to be used in plotting
   segment_breakpoints = collapse_bafsegmented_to_segments(BAFvals)
   if (!is.null(prior_breakpoints_file) & !ifelse(is.null(prior_breakpoints_file), TRUE, prior_breakpoints_file=="NA") & !ifelse(is.null(prior_breakpoints_file), TRUE, is.na(prior_breakpoints_file))) {
-    svs = read.table(prior_breakpoints_file, header=T, stringsAsFactors=F)
+    svs = read_prior_breakpoints_file(prior_breakpoints_file)
   }
   
   # Create a plot per chromosome that shows the segments with their CN state in text
@@ -380,7 +481,7 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
     breakpoints_pos = segment_breakpoints[segment_breakpoints$chromosome==chr,]
     breakpoints_pos = sort(unique(c(breakpoints_pos$start, breakpoints_pos$end) / 1000000))
     
-    png(filename = paste(output.figures.prefix, chr,".png",sep=""), width = 2000, height = 2000, res = 200)
+    png(filename = paste(output.figures.prefix, chr,".png",sep=""), width = 2000, height = 2000, res = 200, type = "cairo")
     create.subclonal.cn.plot(chrom=chr,
                              chrom.position=pos/1000000,
                              LogRposke=LogRvals[LogRvals[,1]==chr,2],
@@ -420,9 +521,20 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   
   # Create user friendly cellularity and ploidy output file
   cellularity_ploidy_output = data.frame(purity = c(rho), ploidy = c(ploidy), psi = c(psit))
-  cellularity_file = gsub("_subclones.txt", "_purity_ploidy.txt", output.file) # NAP: updated the name of the output file, consistent with new title
-  write.table(cellularity_ploidy_output, cellularity_file, quote=F, sep="\t", row.names=F)
+
+  cellularity_file_legacy = paste0(sample.name, "_purity_ploidy.txt")
+  cellularity_file_informative = NULL
+  if (!is.null(solution_type) && length(solution_type) == 1 && !is.na(solution_type) &&
+      !is.na(PSI) && !is.na(RHO)) {
+    cellularity_file_informative = paste0(sample.name, "_", solution_type, "_psi", PSI, "_rho", RHO, "_purity_ploidy.txt")
+  }
+
+  if (!is.null(cellularity_file_informative)) {
+    write.table(cellularity_ploidy_output, cellularity_file_informative, quote=F, sep="\t", row.names=F)
+  }
+  write.table(cellularity_ploidy_output, cellularity_file_legacy, quote=F, sep="\t", row.names=F)
 }
+
 
 #' Given all the determined values make a copy number call for each segment
 #'
@@ -436,10 +548,180 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
 #' @param maxdist Max distance a segment is tolerated to be not considered for subclonal copy number
 #' @param siglevel Level at which a segment can become significantly different from the nearest clonal state
 #' @param noperms Number of bootstrap permutations
-#' @return A data.frame with copy number determined for each segment
+#' @param cn_upper_limit Maximum number of CN that can be called
+#' @param cn_confidence_level Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)
+#' @return A list containing the segment-level copy number calls, BAF p-values and optional bootstrap draws for nMajor and nMinor
 #' @author dw9
 #' @noRd
-determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms) {
+
+copy_number_ci_enabled = function(confidence_level) {
+  if (isFALSE(confidence_level)) {
+    return(FALSE)
+  }
+  if (is.null(confidence_level)) {
+    return(FALSE)
+  }
+  if (length(confidence_level) == 1 && is.na(confidence_level)) {
+    return(FALSE)
+  }
+  if (is.numeric(confidence_level) && length(confidence_level) == 1 && confidence_level == 0) {
+    return(FALSE)
+  }
+  return(TRUE)
+}
+
+#' Calculate a percentile bootstrap interval
+#' @noRd
+calculate_bootstrap_interval = function(values, confidence_level) {
+  if (!copy_number_ci_enabled(confidence_level)) {
+    return(c(lower=NA_real_, upper=NA_real_))
+  }
+  alpha = (1 - confidence_level) / 2
+  interval = stats::quantile(values, probs=c(alpha, 1 - alpha), na.rm=TRUE, names=FALSE)
+  names(interval) = c("lower", "upper")
+  return(interval)
+}
+
+#' Recalculate copy number confidence intervals from bootstrap data
+#'
+#' Reads a previously saved bootstrap file (produced by \code{callSubclones})
+#' and recalculates nMajor/nMinor confidence intervals at a new confidence level.
+#' The bootstrap values in the file are already bias-corrected, so this function
+#' applies the same percentile method used in the main pipeline.
+#'
+#' @param bootstraps_file Path to the \code{*_copy_number_bootstraps.txt} file
+#' @param subclones_file Path to the corresponding \code{*_subclones.txt} or
+#'   \code{*_subclones_extended.txt} file. If provided, the CI columns are
+#'   updated and the result is written to \code{output_file}.
+#' @param confidence_level Confidence level for the interval (e.g. 0.95, 0.99).
+#'   Must be strictly between 0 and 1.
+#' @param output_file Path to write the updated subclones file. Defaults to
+#'   overwriting \code{subclones_file}.
+#' @return A data.frame with columns: segment_id, chr, startpos, endpos,
+#'   nMajor_ci_lower, nMajor_ci_upper, nMinor_ci_lower, nMinor_ci_upper.
+#'   If \code{subclones_file} is provided, also writes the updated file.
+#' @export
+recalculate_cn_confidence_intervals = function(bootstraps_file, subclones_file=NULL, confidence_level=0.95, output_file=NULL) {
+  confidence_level = validate_copy_number_confidence_level(confidence_level)
+  if (isFALSE(confidence_level)) {
+    stop("confidence_level must be a numeric value strictly between 0 and 1")
+  }
+  
+  bootstraps = read.table(bootstraps_file, header=TRUE, sep="\t", stringsAsFactors=FALSE)
+  required_cols = c("segment_id", "nMajor", "nMinor")
+  missing_cols = setdiff(required_cols, colnames(bootstraps))
+  if (length(missing_cols) > 0) {
+    stop("Bootstrap file missing required columns: ", paste(missing_cols, collapse=", "))
+  }
+  
+  alpha = (1 - confidence_level) / 2
+  ci_result = do.call(rbind, lapply(split(bootstraps, bootstraps$segment_id), function(seg) {
+    data.frame(
+      segment_id = seg$segment_id[1],
+      chr = if ("chr" %in% colnames(seg)) seg$chr[1] else NA,
+      startpos = if ("startpos" %in% colnames(seg)) seg$startpos[1] else NA,
+      endpos = if ("endpos" %in% colnames(seg)) seg$endpos[1] else NA,
+      nMajor_ci_lower = as.numeric(stats::quantile(seg$nMajor, probs=alpha, na.rm=TRUE)),
+      nMajor_ci_upper = as.numeric(stats::quantile(seg$nMajor, probs=1-alpha, na.rm=TRUE)),
+      nMinor_ci_lower = as.numeric(stats::quantile(seg$nMinor, probs=alpha, na.rm=TRUE)),
+      nMinor_ci_upper = as.numeric(stats::quantile(seg$nMinor, probs=1-alpha, na.rm=TRUE)),
+      stringsAsFactors = FALSE
+    )
+  }))
+  rownames(ci_result) = NULL
+  
+  if (!is.null(subclones_file)) {
+    subclones = read.table(subclones_file, header=TRUE, sep="\t", stringsAsFactors=FALSE)
+    if (nrow(ci_result) != nrow(subclones)) {
+      stop("Number of segments in bootstrap file (", nrow(ci_result),
+           ") does not match subclones file (", nrow(subclones), ")")
+    }
+    # Match segments by row order (segment_id is sequential)
+    ci_ordered = ci_result[order(ci_result$segment_id), ]
+    subclones$nMajor_ci_lower = ci_ordered$nMajor_ci_lower
+    subclones$nMajor_ci_upper = ci_ordered$nMajor_ci_upper
+    subclones$nMinor_ci_lower = ci_ordered$nMinor_ci_lower
+    subclones$nMinor_ci_upper = ci_ordered$nMinor_ci_upper
+    
+    if (is.null(output_file)) {
+      output_file = subclones_file
+    }
+    write.table(subclones, output_file, quote=FALSE, col.names=TRUE, row.names=FALSE, sep="\t")
+    message("Updated CI columns in: ", output_file)
+  }
+  
+  return(ci_result)
+}
+
+#' Bootstrap continuous nMajor and nMinor estimates for a segment
+#' @noRd
+bootstrap_segment_copynumber = function(BAFke, segment_logr, rho, psi, gamma, noperms, default_l, default_LogR) {
+  valid_baf = BAFke[!is.na(BAFke)]
+  valid_logr = segment_logr[!is.na(segment_logr) & !is.infinite(segment_logr)]
+  if (length(valid_baf) == 0) {
+    valid_baf = default_l
+  }
+  if (length(valid_logr) == 0) {
+    valid_logr = default_LogR
+  }
+  boot_nMajor = vector(length=noperms, mode="numeric")
+  boot_nMinor = vector(length=noperms, mode="numeric")
+  for (j in seq_len(noperms)) {
+    permBAF = valid_baf[sample.int(length(valid_baf), length(valid_baf), replace=TRUE)]
+    permLogR = valid_logr[sample.int(length(valid_logr), length(valid_logr), replace=TRUE)]
+    boot_l = mean(permBAF, na.rm=TRUE)
+    if (is.na(boot_l)) {
+      boot_l = default_l
+    }
+    boot_l = max(boot_l, 1 - boot_l)
+    boot_LogR = mean(permLogR, na.rm=TRUE)
+    if (is.na(boot_LogR)) {
+      boot_LogR = default_LogR
+    }
+    boot_nMajor[j] = (rho - 1 + boot_l * psi * 2^(boot_LogR / gamma)) / rho
+    boot_nMinor[j] = (rho - 1 + (1 - boot_l) * psi * 2^(boot_LogR / gamma)) / rho
+    if (boot_nMinor[j] < 0) {
+      if (boot_l == 1) {
+        boot_nMajor[j] = 1000
+      } else {
+        boot_nMajor[j] = boot_nMajor[j] + boot_l * (0 - boot_nMinor[j]) / (1 - boot_l)
+      }
+      boot_nMinor[j] = 0
+    }
+  }
+  return(data.frame(bootstrap_iteration=seq_len(noperms), nMajor=boot_nMajor, nMinor=boot_nMinor))
+}
+
+#' Validate copy-number CI configuration
+#' @noRd
+validate_copy_number_confidence_level = function(confidence_level) {
+  if (!copy_number_ci_enabled(confidence_level)) {
+    return(FALSE)
+  }
+  if (!is.numeric(confidence_level)) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  if (length(confidence_level) != 1) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  if (is.na(confidence_level)) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  if (confidence_level <= 0) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  if (confidence_level >= 1) {
+    stop("cn_confidence_level must be FALSE, NULL, NA, 0 or a single numeric value strictly between 0 and 1")
+  }
+  return(as.numeric(confidence_level))
+}
+
+determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctrans.logR, maxdist, siglevel, noperms, cn_upper_limit, cn_confidence_level=0.95) {
+  cn_confidence_level = validate_copy_number_confidence_level(cn_confidence_level)
+  calculate_cn_ci = copy_number_ci_enabled(cn_confidence_level)
+  if (calculate_cn_ci && noperms < 1) {
+    stop("noperms must be at least 1 when cn_confidence_level is enabled")
+  }
   BAFphased = BAFvals[,4]
   BAFseg = BAFvals[,5]
   BAFpos = as.vector(ctrans[as.vector(BAFvals[,1])]*1000000000+BAFvals[,2])
@@ -452,6 +734,7 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
   pval = NULL
   BAFpvals = vector(length=length(BAFseg))
   subcloneres = NULL
+  segment_bootstraps = NULL
   
   for (i in 1:length(BAFlevels)) {
     # subcloneres = rbind(subcloneres, fit_segment(BAFpos, LogRpos, BAFlevels, BAFphased, LogRvals, switchpoints, rho, psi, gamma, i))
@@ -469,7 +752,8 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
     #chrom = names(ctrans[floor(startpos/1000000000)])
     # Assuming all SNPs in this segment are on the same chromosome
     chrom = BAFvals[(switchpoints[i]+1):switchpoints[i+1],]$Chromosome[1]
-    LogR = mean(LogRvals[LogRpos>=startpos&LogRpos<=endpos & !is.infinite(LogRvals[,3]),3],na.rm=T)
+    segment_logr = LogRvals[LogRpos>=startpos&LogRpos<=endpos & !is.infinite(LogRvals[,3]),3]
+    LogR = mean(segment_logr,na.rm=T)
     
     # if we don't have a value for LogR, fill in 0
     if (is.na(LogR)) {
@@ -477,18 +761,56 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
     }
     nMajor = (rho-1+l*psi*2^(LogR/gamma))/rho
     nMinor = (rho-1+(1-l)*psi*2^(LogR/gamma))/rho
-    
+   
+    # Occasionally nMinor can be NA due to zero coverage, skip when this occurs
+    if (is.na(nMinor)) {
+      next
+    }
+
     # Increase nMajor and nMinor together, to avoid impossible combinations (with negative subclonal fractions)
+    nMinor_clamped = FALSE
     if (nMinor<0) {
       if (l==1) {
         # Avoid calling infinite copy number
-        nMajor = 1000
+        nMajor = cn_upper_limit
       } else {
-        nMajor = nMajor + l * (0.01 - nMinor) / (1-l)
+        nMajor = nMajor + l * (0 - nMinor) / (1-l)
       }
-      nMinor = 0.01
+      nMinor = 0
+      nMinor_clamped = TRUE
     }
     
+        # calculate bootstrapped CIs:
+    nMajor_ci = c(lower=NA_real_, upper=NA_real_)
+    nMinor_ci = c(lower=NA_real_, upper=NA_real_)
+    if (calculate_cn_ci) {
+      bootstrapped_cn = bootstrap_segment_copynumber(BAFke, segment_logr, rho, psi, gamma, noperms, l, LogR)
+      # Bias correction: the bootstrap resamples raw phased BAF and takes mean(),
+      # but the point estimate uses PCF-segmented BAF (BAFlevels[i]). These are
+      # different estimators, so the bootstrap distribution may be centered away
+      # from the point estimate. Shift the bootstrap distribution to center on the
+      # point estimates, preserving the CI width (uncertainty).
+      boot_nMajor_bias = mean(bootstrapped_cn$nMajor, na.rm=TRUE) - nMajor
+      boot_nMinor_bias = mean(bootstrapped_cn$nMinor, na.rm=TRUE) - nMinor
+      bootstrapped_cn$nMajor = bootstrapped_cn$nMajor - boot_nMajor_bias
+      bootstrapped_cn$nMinor = bootstrapped_cn$nMinor - boot_nMinor_bias
+      nMajor_ci = calculate_bootstrap_interval(bootstrapped_cn$nMajor, cn_confidence_level)
+      nMinor_ci = calculate_bootstrap_interval(bootstrapped_cn$nMinor, cn_confidence_level)
+      # When nMinor was clamped to 0, force CI lower to 0 and upper to at least 0.01
+      if (nMinor_clamped) {
+        nMinor_ci["lower"] = 0
+        nMinor_ci["upper"] = max(0.01, nMinor_ci["upper"])
+      }
+      bootstrapped_cn$segment_id = i
+      bootstrapped_cn$chr = chrom
+      bootstrapped_cn$startpos = startpos - floor(startpos/1000000000) * 1000000000
+      bootstrapped_cn$endpos = endpos - floor(endpos/1000000000) * 1000000000
+      bootstrapped_cn$BAF = l
+      bootstrapped_cn$LogR = LogR
+      bootstrapped_cn = bootstrapped_cn[,c("segment_id","chr","startpos","endpos","BAF","LogR","bootstrap_iteration","nMajor","nMinor")]
+      segment_bootstraps = rbind(segment_bootstraps, bootstrapped_cn)
+    }
+
     # Note that these are sorted in the order of ascending BAF:
     nMaj = c(floor(nMajor), ceiling(nMajor), floor(nMajor), ceiling(nMajor))
     nMin = c(ceiling(nMinor), ceiling(nMinor), floor(nMinor), floor(nMinor))
@@ -566,7 +888,8 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
       }
       
       subcloneres = rbind(subcloneres, c(chrom,startpos-floor(startpos/1000000000)*1000000000,
-                                         endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,
+                                         endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,nMajor,nMinor,
+                                         nMajor_ci["lower"],nMajor_ci["upper"],nMinor_ci["lower"],nMinor_ci["upper"],
                                          nMaj1[1],nMin1[1],tau[1],nMaj2[1],nMin2[1],1-tau[1],sdtau[1],sdtaubootstrap[1],tau25[1],tau975[1],
                                          nMaj1[2],nMin1[2],tau[2],nMaj2[2],nMin2[2],1-tau[2],sdtau[2],sdtaubootstrap[2],tau25[2],tau975[2],
                                          nMaj1[3],nMin1[3],tau[3],nMaj2[3],nMin2[3],1-tau[3],sdtau[3],sdtaubootstrap[3],tau25[3],tau975[3],
@@ -576,12 +899,14 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
     }else {
       #if called as clonal, use the best corner from the nearest edge
       subcloneres = rbind(subcloneres, c(chrom,startpos-floor(startpos/1000000000)*1000000000,
-                                         endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,
+                                         endpos-floor(endpos/1000000000)*1000000000,l,pval[i],LogR,ntot,nMajor,nMinor,
+                                         nMajor_ci["lower"],nMajor_ci["upper"],nMinor_ci["lower"],nMinor_ci["upper"],
                                          nMaj.test[whichclosestlevel.test],nMin.test[whichclosestlevel.test],1,rep(NA,57)))
       
     }
   }
-  colnames(subcloneres) = c("chr","startpos","endpos","BAF","pval","LogR","ntot",
+  colnames(subcloneres) = c("chr","startpos","endpos","BAF","pval","LogR","ntot","nMajor","nMinor",
+                            "nMajor_ci_lower","nMajor_ci_upper","nMinor_ci_lower","nMinor_ci_upper",
                             "nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A","SDfrac_A","SDfrac_A_BS","frac1_A_0.025","frac1_A_0.975",
                             "nMaj1_B","nMin1_B","frac1_B","nMaj2_B","nMin2_B","frac2_B","SDfrac_B","SDfrac_B_BS","frac1_B_0.025","frac1_B_0.975",
                             "nMaj1_C","nMin1_C","frac1_C","nMaj2_C","nMin2_C","frac2_C","SDfrac_C","SDfrac_C_BS","frac1_C_0.025","frac1_C_0.975",
@@ -592,7 +917,14 @@ determine_copynumber = function(BAFvals, LogRvals, rho, psi, gamma, ctrans, ctra
   for (i in 2:ncol(subcloneres)) {
     subcloneres[,i] = as.numeric(as.character(subcloneres[,i]))
   }
-  return(list(subcloneres=subcloneres, BAFpvals=BAFpvals))
+    if (!is.null(segment_bootstraps)) {
+    segment_bootstraps = as.data.frame(segment_bootstraps)
+    numeric_bootstrap_columns = setdiff(colnames(segment_bootstraps), c("chr"))
+    for (column in numeric_bootstrap_columns) {
+      segment_bootstraps[,column] = as.numeric(as.character(segment_bootstraps[,column]))
+    }
+  }
+  return(list(subcloneres=subcloneres, BAFpvals=BAFpvals, segment_bootstraps=segment_bootstraps))
 }
 
 
@@ -732,7 +1064,9 @@ merge_segments=function(subclones, bafsegmented, logR, rho, psi, platform_gamma,
   # Convert DFs into GRanges objects
   if (verbose) print('Convert DFs into GRanges objects')
   subclones=df2gr(subclones,'chr','startpos','endpos')
+  str(bafsegmented)
   bafsegmented=df2gr(bafsegmented,'Chromosome','Position','Position')
+  str(logR)
   logR=df2gr(logR,'Chromosome','Position','Position')
   names(GenomicRanges::mcols(logR))='logR'
   # Split GRanges objects by chromosomes
@@ -740,6 +1074,7 @@ merge_segments=function(subclones, bafsegmented, logR, rho, psi, platform_gamma,
   subclones=lapply(chr_names,function(x) subclones[GenomicRanges::seqnames(subclones)==x])
   bafsegmented=lapply(chr_names,function(x) bafsegmented[GenomicRanges::seqnames(bafsegmented)==x])
   logR=lapply(chr_names,function(x) logR[GenomicRanges::seqnames(logR)==x])
+  
   stopifnot(all(sapply(subclones,length)>0) && all(sapply(bafsegmented,length)>0) && all(sapply(logR,length)>0))
   names(subclones)=chr_names
   names(bafsegmented)=chr_names
@@ -887,7 +1222,7 @@ plot.gw.subclonal.cn = function(subclones, BAFvals, rho, ploidy, goodness, outpu
     pos_min[i] = min(which(segm_chr))
     pos_max[i] = max(which(segm_chr))
   }
-
+  
   # For those segments that are subclonal, Obtain the second state.
   is_subclonal = which(subclones$frac1_A < 1)
   subcl_min = array(NA, length(is_subclonal))
@@ -917,7 +1252,7 @@ plot.gw.subclonal.cn = function(subclones, BAFvals, rho, ploidy, goodness, outpu
   chr.segs = lapply(1:length(chr.names), function(ch) { which(BAFvals$Chromosome==chr.names[ch]) })
   
   # Plot subclonal copy number as mixtures of two states
-  png(filename = paste(output.gw.figures.prefix, "_average.png", sep=""), width = 2000, height = 500, res = 200)
+  png(filename = paste(output.gw.figures.prefix, "_average.png", sep=""), width = 2000, height = 500, res = 200, type = "cairo")
   create.bb.plot.average(bafsegmented=BAFvals,
                          ploidy=ploidy,
                          rho=rho,
@@ -932,7 +1267,7 @@ plot.gw.subclonal.cn = function(subclones, BAFvals, rho, ploidy, goodness, outpu
   dev.off()
   
   # Plot subclonal copy number as two separate states
-  png(filename = paste(output.gw.figures.prefix, "_subclones.png", sep=""), width = 2000, height = 500, res = 200)
+  png(filename = paste(output.gw.figures.prefix, "_subclones.png", sep=""), width = 2000, height = 500, res = 200, type = "cairo")
   create.bb.plot.subclones(bafsegmented=BAFvals,
                            subclones=subclones,
                            ploidy=ploidy,
@@ -990,8 +1325,6 @@ collapse_bafsegmented_to_segments = function(bafsegmented) {
 #'
 #' @param samplename Name of the sample for the plot title
 #' @param logr_file File containing all logR data
-#' @param subclones_file File with the copy number fit
-#' @param rho_psi_file File with rho and psi parameters
 #' @param bafsegmented_file File containing the BAFsegmented data
 #' @param logrsegmented_file File with the logRsegmented data
 #' @param allelecounts_file Optional file with raw allele counts (Default: NULL)
@@ -1026,44 +1359,87 @@ make_posthoc_plots = function(samplename, logr_file, subclones_file, rho_psi_fil
 #' This function enables calling subclonal copy number for the non-PAR region by segmenting LogR.
 #' A number of correction steps are undertaken to account for the noisy nature of LogR. This function
 #' requires the following libraries: copynumber, data.table and ggplot2. It reads in three files generated
-#' by previous steps of Battenberg, namely TUMOURNAME_mutantLogR_gcCorrected.tab, TUMOURNAME_purity_ploidy.txt
-#' and TUMOURNAME_subclones.txt.
-#' @param TUMOURNAME The tumour name used for Battenberg (i.e. the tumour BAM file name without the .bam extension)
-#' @param X_GAMMA The PCF gamma value for segmentation of 1000G SNP LogR values (Default 1000)
-#' @param X_KMIN The min number of SNPs to support a segment in PCF of LogR values (Default 100)
+#' by previous steps of Battenberg, namely samplename_mutantLogR_gcCorrected.tab, samplename_purity_ploidy.txt
+#' and samplename_copynumber_extended.txt.
+#' This function will also update the Battenberg genome-wide profile plots (average.png and subclones.png) to include the chrX profile by also
+#' reading in the samplename.BAFsegmented.txt and samplename_rho_psi.txt files
+#' @param tumourname The sample name used for Battenberg (i.e. the tumour BAM file name without the .bam extension)
+#' @param X_gamma The PCF gamma value for segmentation of 1000G SNP LogR values (Default 1000)
+#' @param X_kmin The min number of SNPs to support a segment in PCF of LogR values (Default 100)
+#' @param genomebuild The genome build used in running Battenberg (hg19 or hg38)
 #' @param AR Should the segment carrying the androgen receptor (AR) locus to be visually distinguished in average plot? (Default TRUE)
-#' @param GENOMEBUILD The genome build used in running Battenberg (hg19 or hg38)
-#' @author Naser Ansari-Pour (BDI, Oxford)
+#' @param prior_breakpoints_file A two column text file with prior genome-wide breakpoints, possibly from structural variants. This file must contain two columns with headers "chr" and "pos" representing chromosome and position.
+#' @param chrom_names A vector containing the names of chromosomes to be included in the final genome-wide Battenberg copy number plot with chrX
+#' @param seed Seed to use for deterministic random sampling in the chrX plotting helper (Default: 1)
+#' @author naser.ansari-pour
 #' @export
-callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=TRUE, RHO, PSI, solution_type){
-  print(TUMOURNAME)
-  PCFinput=data.frame(read_table_generic(paste0(TUMOURNAME,"_mutantLogR_gcCorrected.tab")),stringsAsFactors=F)
-  PCFinput=PCFinput[which(PCFinput$Chromosome=="X" & PCFinput$Position>2.6e6 & PCFinput$Position<156e6),] # get nonPAR
-  colnames(PCFinput)[3]=TUMOURNAME
-  print(paste("Number of chrX nonPAR SNPs =",nrow(PCFinput)))
-  PCF=copynumber::pcf(PCFinput,gamma=X_GAMMA,kmin=X_KMIN)
-  write.table(PCF, paste0(solution_type, "_psi", PSI, "_rho", RHO, "_PCF_gamma_",X_GAMMA,"_chrX.txt"),col.names=T,row.names=F,quote=F,sep="\t")
-  print("PCF segmentation done")
+
+callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=TRUE,prior_breakpoints_file=NULL,chrom_names,data_type="wgs", RHO, PSI, solution_type, seed=as.integer(1)){
   
-  if (GENOMEBUILD=="hg19"){
-    x_centromere=c(58632012,61632012) # hg19
+  print(tumourname)
+  
+  if (genomebuild=="hg19"){
+    par_regions=c(2699520,155260560)
+    x_centromere=c(58632012,61632012)
     ar=data.frame(startpos=66763874,endpos=66950461)
-  } else {
-    x_centromere=c(58605580,62412542) #hg38
+  } else if (genomebuild=="hg38") {
+    par_regions=c(2781479,156030895)
+    x_centromere=c(58605580,62412542)
     ar=data.frame(startpos=67544021,endpos=67730619)
+  } else {
+    stop("Genomebuild not supported for callChrXsubclones")
   }
+  
+  if (data_type=="wgs" | data_type=="WGS") {
+    PCFinput=data.frame(read_table_generic(paste0(tumourname,"_mutantLogR_gcCorrected.tab")),stringsAsFactors=F)
+  } else {
+    PCFinput=data.frame(read_table_generic(paste0(tumourname,"_mutantLogR.tab")),stringsAsFactors=F)
+  }
+  ChrNotation=unique(PCFinput[which(!is.na(match(PCFinput$Chromosome,c("X","chrX")))),]$Chromosome) # find the chromosome notation
+  PCFinput=PCFinput[which(PCFinput$Chromosome==ChrNotation & PCFinput$Position>par_regions[1] & PCFinput$Position<par_regions[2]),] # get nonPAR using par_regions based on genomebuild
+  colnames(PCFinput)[3]=tumourname
+  print(paste("Number of chrX nonPAR SNPs =",nrow(PCFinput)))
+  
+  if (!is.null(prior_breakpoints_file)) {
+    sv=read_prior_breakpoints_file(prior_breakpoints_file)
+    sv=sv[which(!is.na(match(sv$chr,c("X","chrX","23")))),]
+    # check if there are breakpoints within chrX
+    if (nrow(sv)>0){
+      # make sure all SV breakpoint positions are within the LogR data range and not outside of it  
+      svpos=sort(sv[which((sv$pos > min(PCFinput$Position)) & (sv$pos < max(PCFinput$Position))),"pos"])
+      breakpoints=c(min(PCFinput$Position),svpos,max(PCFinput$Position))
+      PCF=data.frame()
+      for (j in 1:(length(breakpoints)-1)) {
+        PCFinput_sv=PCFinput[which(PCFinput$Position>=breakpoints[j] & PCFinput$Position<breakpoints[j+1]),]
+        # in case there is no SNP between two SVs on chrX
+        if (nrow(PCFinput_sv)==0) next
+        PCF_sv=copynumber::pcf(PCFinput_sv,gamma=X_gamma,kmin=X_kmin)
+        PCF=rbind(PCF,PCF_sv)
+      }
+    } else {
+      PCF=copynumber::pcf(PCFinput,gamma=X_gamma,kmin=X_kmin)
+    }
+  } else {
+    PCF=copynumber::pcf(PCFinput,gamma=X_gamma,kmin=X_kmin)
+  }
+  write.table(PCF,paste0(tumourname,"_PCF_gamma_",X_gamma,"_chrX.txt"),col.names=T,row.names=F,quote=F,sep="\t")
+  write.table(PCF, paste0(solution_type, "_psi", PSI, "_rho", RHO, "_PCF_gamma_",X_gamma,"_chrX.txt"),col.names=T,row.names=F,quote=F,sep="\t")
+
+  print("PCF segmentation done")
   
   # INPUT for copy number inference
   SAMPLEsegs=data.frame(PCF,stringsAsFactors=F)
-  pupl=read.table(paste0(TUMOURNAME, "_", solution_type, "_psi", PSI, "_rho", RHO, "_purity_ploidy.txt"),header=T,stringsAsFactors=F)
-  SAMPLEpurity=pupl$purity
-  #SAMPLEploidy=round(pupl$ploidy/2)*2
+  #pupl=read.table(paste0(tumourname,"_purity_ploidy.txt"),header=T,stringsAsFactors=F)
+  pupl=read.table(paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_purity_ploidy.txt"),header=T,stringsAsFactors=F)
+
+  SAMPLEpurity=pupl[,1] # SAMPLEpurity=pupl$cellularity in previous Battenberg version; change from pupl$purity to pupl[,1] for universality
+  #SAMPLEwgd=ifelse(round(pupl$ploidy/2)*2==4,T,F)
   SAMPLEn=pupl$ploidy
   print(paste(SAMPLEpurity,SAMPLEn))
-  
   # Estimating LogR deviation in diploid and gained regions (AUTOSOMAL)
-  BB=read.table(paste0(TUMOURNAME, "_", solution_type, "_psi", PSI, "_rho", RHO, "_subclones.txt"),header=T,stringsAsFactors = F)
-  
+  #BB=read.table(paste0(tumourname,"_copynumber_extended.txt"),header=T,stringsAsFactors = F)
+  BB=read.table(paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_subclones.txt"),header=T,stringsAsFactors = F)
+
   BBdip=BB[which(BB$nMaj1_A==1 & BB$nMin1_A==1 & BB$frac1_A==1),]
   # correction for LogR values
   BBcorr=-mean(BBdip$LogR) #diploid only
@@ -1096,7 +1472,7 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
   # BB LOH - estimating sd for LOH/loss events
   BBloh=BB[which(BB$nMaj1_A==1 & BB$nMin1_A==0 & BB$frac1_A==1),]
   if (nrow(BBloh)<=1){ #sd would be NA
-    print("likely WGD sample or no clonal LOH event")
+    print("likely WGD sample or no clonal LOH event or just one single LOH event observed")
     BBloh=BB[which(BB$nMin1_A==0 & BB$frac1_A==1),] # all LOH events with varying nMaj1_A including 2:0 events
   }
   
@@ -1109,7 +1485,6 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
   # assign CN
   SEG=data.frame()
   for (j in 1:nrow(SAMPLEsegs)){
-
     seg=SAMPLEsegs[j,]
     seg$type=ifelse(seg$mean<0,"loss","gain")
     
@@ -1152,9 +1527,9 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
         }
       } else if (seg$type=="loss"){
         seg$CN=0
-        if (nrow(BBloh)>0){
+        if (nrow(BBloh)>1){
           seg$clonal=ifelse(round(abs(explogrLoss-seg$mean),digits=2)<round(abs(sd(BBloh$LogR)/explogrLoss),digits=2),"yes","no")
-        } else if (nrow(BBloh)==0){
+        } else if (nrow(BBloh)<=1){ #sd would be NA
           seg$clonal=ifelse(round(abs(explogrLoss-seg$mean),digits=2)<round(abs(BBsd_max/explogrLoss),digits=2),"yes","no")
         }
       }
@@ -1178,8 +1553,6 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
   # CALCULATE CCF 
   CCF=data.frame()
   for (j in 1:nrow(SEG)){
-
-    print(j)
     seg=SEG[j,]
     if (seg$CNA=="yes"){
       if (seg$type=="gain"){
@@ -1233,7 +1606,7 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
         }
       }
     }
-    print(j)
+    #print(j)
     SUBCLONES=rbind(SUBCLONES,subclones)
   }
   
@@ -1253,12 +1626,13 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
   outputDF=data.frame()
   for (j in 1:length(SPLIT)){
     if (length(SPLIT[[j]])>1){
-      print(length(SPLIT[[j]]))
+      #print(length(SPLIT[[j]]))
       SUBsplit=SUBCLONESout[which(!is.na(match(SUBCLONESout$rank,SPLIT[[j]]))),]
+      SUBsplit=SUBsplit[order(SUBsplit$rank),]  # restore positional order for correct merging
       if (length(unique(SUBsplit$arm))==1){
         if (sd(SUBsplit$subclonalCN)<=0.01){
           mergedseg=SUBsplit[1,]
-          mergedseg$endpos=SUBsplit[length(SPLIT[[j]]),"endpos"]
+          mergedseg$endpos=SUBsplit[nrow(SUBsplit),"endpos"]
           mergedseg$nSNPs=sum(SUBsplit$nSNPs)
           mergedseg$LogR=weighted.mean(SUBsplit$LogR,SUBsplit$nSNPs)
           outputDF=rbind(outputDF,mergedseg)
@@ -1271,6 +1645,7 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
       } else{
         # if (length(SUBsplit$arm=="p"))
         pseg=SUBsplit[SUBsplit$arm=="p",]
+        pseg=pseg[order(pseg$rank),]
         if (nrow(pseg)>1){
           if (sd(pseg$subclonalCN)<=0.01){
             mergedseg=pseg[1,]
@@ -1284,6 +1659,7 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
           }
         } else {outputDF=rbind(outputDF,pseg)}
         qseg=SUBsplit[SUBsplit$arm=="q",]
+        qseg=qseg[order(qseg$rank),]
         if (nrow(qseg)>1){
           if (sd(qseg$subclonalCN)<=0.01){
             mergedseg=qseg[1,]
@@ -1303,24 +1679,113 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
     }
   }
   outputDF=outputDF[order(outputDF$startpos),]
-  outputDF$rank=NULL
+
+  # Non-PAR chrX calling is based on a simplified LogR-only model, so we do not have the
+  # same bootstrap machinery as the autosomal BAF/LogR path. Use a fixed +/- 0.25 interval
+  # around the inferred subclonal copy number as a simple heuristic CI for chrX outputs.
+  outputDF$subclonalCN_ci_lower = pmax(outputDF$subclonalCN - 0.25, 0)
+  outputDF$subclonalCN_ci_upper = outputDF$subclonalCN + 0.25
   
   print(paste("Number of rows merged =",nrow(SUBCLONESout)-nrow(outputDF)))
-  write.table(outputDF,paste0(TUMOURNAME, "_", solution_type, "_psi", PSI, "_rho", RHO, "_chrX_subclones.txt"),col.names = T,row.names = F,quote = F,sep="\t")
   
+  # Fix any segments with invalid coordinates (startpos > endpos) after merging
+  bad_segs <- which(outputDF$startpos > outputDF$endpos)
+  if (length(bad_segs) > 0) {
+    warning(paste0("sample ", tumourname, ": ", length(bad_segs),
+                   " chrX segments have startpos > endpos after merging — swapping to fix."))
+    for (bs in bad_segs) {
+      warning(paste0("  rank ", outputDF$rank[bs],
+                     ": startpos=", outputDF$startpos[bs],
+                     " endpos=", outputDF$endpos[bs],
+                     " arm=", outputDF$arm[bs],
+                     " subclonalCN=", outputDF$subclonalCN[bs]))
+      tmp <- outputDF$startpos[bs]
+      outputDF$startpos[bs] <- outputDF$endpos[bs]
+      outputDF$endpos[bs] <- tmp
+    }
+  }
+  
+  # Construct solution-specific filenames
+  subclones_file = paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_subclones.txt")
+  subclones_extended_file = paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_subclones_extended.txt")
+  
+  # --- Update solution-specific _subclones.txt (19 columns) ---
+  BB_no_x = BB[which(is.na(match(BB$chr, c("X","chrX")))), ]
+  chrX_for_subclones = data.frame(
+    chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
+    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
+    nMajor=outputDF$nMaj1, nMinor=outputDF$nMin1,
+    nMaj1_A=outputDF$nMaj1, nMin1_A=outputDF$nMin1, frac1_A=outputDF$frac1,
+    nMaj2_A=outputDF$nMaj2, nMin2_A=outputDF$nMin2, frac2_A=outputDF$frac2,
+    SDfrac_A=NA, SDfrac_A_BS=NA, frac1_A_0.025=NA, frac1_A_0.975=NA,
+    stringsAsFactors=FALSE)
+  BB_updated = rbind(BB_no_x, chrX_for_subclones)
+  write.table(BB_updated, subclones_file, col.names=T, row.names=F, quote=F, sep="\t")
+  
+  # --- Update solution-specific _subclones_extended.txt (full columns) ---
+  BB_ext = read.table(subclones_extended_file, header=T, stringsAsFactors=F)
+  BB_ext_no_x = BB_ext[which(is.na(match(BB_ext$chr, c("X","chrX")))), ]
+  chrX_for_extended = data.frame(
+    chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
+    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
+    nMajor=outputDF$nMaj1, nMinor=outputDF$nMin1,
+    nMajor_ci_lower=outputDF$subclonalCN_ci_lower, nMajor_ci_upper=outputDF$subclonalCN_ci_upper,
+    nMinor_ci_lower=NA, nMinor_ci_upper=NA,
+    nMaj1_A=outputDF$nMaj1, nMin1_A=outputDF$nMin1, frac1_A=outputDF$frac1,
+    nMaj2_A=outputDF$nMaj2, nMin2_A=outputDF$nMin2, frac2_A=outputDF$frac2,
+    stringsAsFactors=FALSE)
+  # Fill remaining columns (SDfrac_A, SDfrac_A_BS, ..., solutions B-F) with NA
+  remaining_cols = setdiff(colnames(BB_ext), colnames(chrX_for_extended))
+  for (col in remaining_cols) {
+    chrX_for_extended[[col]] = NA
+  }
+  chrX_for_extended = chrX_for_extended[, colnames(BB_ext), drop=FALSE]
+  BB_ext_updated = rbind(BB_ext_no_x, chrX_for_extended)
+  write.table(BB_ext_updated, subclones_extended_file, col.names=T, row.names=F, quote=F, sep="\t")
+  
+  # --- Legacy _copynumber.txt and _copynumber_extended.txt (backward compatibility) ---
+  BBnew=BB[which(is.na(match(BB$chr,c("X","chrX")))),c("chr","startpos","endpos","nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A")]
+  
+  outputDF_for_merge=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,
+                                nMaj1_A=outputDF$nMaj1,nMin1_A=outputDF$nMin1,frac1_A=outputDF$frac1,
+                                nMaj2_A=outputDF$nMaj2,nMin2_A=outputDF$nMin2,frac2_A=outputDF$frac2,
+                                stringsAsFactors = F)
+  
+  BBnew=rbind(BBnew,outputDF_for_merge)
+  write.table(BBnew,paste0(tumourname,"_copynumber.txt"),col.names = T,row.names = F,quote = F,sep="\t")
+  
+  BBnew_extended=BB[which(is.na(match(BB$chr,c("X","chrX")))),] # copynumber_extended.txt columns for chrX
+  
+  outputDF_for_merge_extended=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,BAF=NA,pval=NA,LogR=outputDF$LogR,ntot=NA,
+                                         nMajor=outputDF$nMaj1,nMinor=outputDF$nMin1,
+                                         nMaj1_A=outputDF$nMaj1,nMin1_A=outputDF$nMin1,frac1_A=outputDF$frac1,nMaj2_A=outputDF$nMaj2,nMin2_A=outputDF$nMin2,
+                                         frac2_A=outputDF$frac2)
+  BtoFsolutions=data.frame(matrix(nrow= nrow(outputDF),ncol = ncol(BB)-ncol(outputDF_for_merge_extended)))
+  names(BtoFsolutions)=names(BB)[(ncol(outputDF_for_merge_extended)+1):ncol(BB)]
+  
+  BBnew_extended=rbind(BBnew_extended,cbind(outputDF_for_merge_extended,BtoFsolutions))
+  write.table(BBnew_extended,paste0(tumourname,"_copynumber_extended.txt"),col.names = T,row.names = F,quote = F,sep="\t")
+  write.table(outputDF,paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_chrX_subclones.txt"),col.names = T,row.names = F,quote = F,sep="\t")
+
   # PLOT
   outputDF$diff=outputDF$endpos-outputDF$startpos
+  # print(outputDF)
+  if (nrow(outputDF[which(outputDF$CNA=="yes"),])>0){
   PGAclonal=sum(outputDF[which(outputDF$clonal=="yes"),]$diff)/sum(outputDF[which(!is.na(outputDF$clonal)),]$diff)
+  print(paste("chrX-based PGA.is.clonal =",PGAclonal))
+  } else {
+    print("no chrX CNA identified")
+    PGAclonal = "NA"
+  }
   
-  
-  plot_BB=ggplot()+geom_hline(yintercept = 0:ceiling(max(outputDF$subclonalCN)),linetype="longdash",col="grey",size=0.2)+
+  plot_BB=ggplot()+geom_hline(yintercept = 0:ceiling(max(outputDF$subclonalCN)),linetype="longdash",col="grey",linewidth=0.2)+
     geom_rect(data=outputDF,aes(xmin=startpos,xmax=endpos,ymin=subclonalCN-0.02,ymax=subclonalCN+0.02))+
     geom_vline(xintercept = x_centromere,linetype="longdash",col="green")+
     #geom_hline(yintercept = nonpar,linetype="dotted",col="blue")+
     ylim(-0.2,ceiling(max(outputDF$subclonalCN))+0.2)+labs(x="ChrX coordinate (bp)",y="Average Ploidy")+
     theme(plot.title = element_text(hjust = 0.5,size=12),panel.background = element_blank())+
-    ggtitle(paste0(TUMOURNAME," , PLOIDY: ",round(SAMPLEn,digits = 3)," , PURITY: ",round(SAMPLEpurity*100,digits = 0),
-                   "%, PGAclonal: ",round(PGAclonal*100,digits = 1),"%"))
+    ggtitle(paste0(tumourname," , Ploidy: ",round(SAMPLEn,digits = 3)," , Purity: ",round(SAMPLEpurity*100,digits = 0),
+                   "%, chrX PGA.is.clonal: ",ifelse(PGAclonal=="NA","NA",paste0(round(PGAclonal*100,digits = 1),"%"))))
   
   # ANDROGEN RECEPTOR LOCUS
   if (AR){
@@ -1333,8 +1798,51 @@ callChrXsubclones = function(TUMOURNAME,X_GAMMA=1000,X_KMIN=100,GENOMEBUILD,AR=T
     plot_BB=plot_BB+geom_rect(data=segAR,aes(xmin=startpos,xmax=endpos,ymin=subclonalCN-0.02,ymax=subclonalCN+0.02),fill="red")
   }
   
-  pdf(paste0(TUMOURNAME, "_", solution_type, "_psi", PSI, "_rho", RHO, "_chrX_average_ploidy.pdf"))
+  #pdf(paste0(tumourname,"_chrX_average_ploidy.pdf"))
+  pdf(paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_chrX_average_ploidy.pdf"))
+
   print(plot_BB)
   dev.off()
   
+  # update outputDF (chrX-only copynumber output file)
+  outputDF=outputDF[,c("chrom", "arm", "startpos", "endpos", "nSNPs", "LogR",
+                       "nMaj1", "nMin1", "frac1", "nMaj2", "nMin2", "frac2",
+                       "subclonalCN", "subclonalCN_ci_lower", "subclonalCN_ci_upper")]
+  write.table(outputDF,paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_chrX_copynumber.txt"),col.names = T,row.names = F,quote = F,sep="\t")
+  
+  # Update the genomewide Battenberg plots
+  # goodness from rho_psi file (i.e. column named 'distance')
+  goodness=read.table(paste0(tumourname,"_", solution_type, "_psi", PSI, "_rho", RHO, "_runclonalASCAT_rho_and_psi.txt"),header=T,stringsAsFactors = F,sep="\t")
+  goodness=goodness[which(goodness$is.best=="TRUE"),"distance"]
+  # rho and ploidy from purity_ploidy file
+  rho_psi=read.table(paste0(tumourname,"_", solution_type, "_psi", PSI, "_rho", RHO, "_purity_ploidy.txt"),header=T,stringsAsFactors = F,sep="\t")
+  # update for BB3 - replace cellularity with purity
+  # rho=rho_psi$cellularity
+  rho=rho_psi$purity
+  ploidy=rho_psi$ploidy
+  # Need BAFsegment file
+  BAFvals=as.data.frame(Battenberg:::read_bafsegmented(paste0(tumourname,".BAFsegmented.txt")))
+  print("BAFvals")
+  
+  # replacing constant value of 90000 with chrX_BAFvals_length as a sample-specific way of counting the typical no. of het SNPs expected based on chrX length (chr 7 and 8 average hetSNP count) 
+  # option 1 (may not always work if chr7 or chr8 have any kind of LOH in a pure or high-purity sample)
+  #chrX_BAFvals_length=round((nrow(BAFvals[which(!is.na(match(BAFvals$Chromosome,c(7,"chr7")))),])+nrow(BAFvals[which(!is.na(match(BAFvals$Chromosome,c(8,"chr8")))),]))/2,0)
+  # option 2 (based on the proportion of genome covered by chrX (i.e. 156e6/3e9 = 5%) and the number of hetSNPs in a sample-specific manner)
+  chrX_BAFvals_length = round(nrow(BAFvals)*0.05,0)
+  print(paste("chrX BAFvals length =",chrX_BAFvals_length))
+  
+  set.seed(seed)
+  
+  BAFvals=rbind(BAFvals[which(is.na(match(BAFvals$Chromosome,c("X","chrX")))),],
+                data.frame(Chromosome="X",Position=sort(sample(1:155e6,chrX_BAFvals_length,replace=F)), # 155e6: approximate length of chrX
+                           BAF=sample(c(0,1),chrX_BAFvals_length,replace=T),BAFphased=1,BAFseg=1)) 
+  
+  Battenberg:::plot.gw.subclonal.cn(subclones=BBnew, 
+                                    BAFvals=BAFvals, 
+                                    rho=rho, 
+                                    ploidy=ploidy, 
+                                    goodness=goodness, 
+                                    output.gw.figures.prefix=paste(tumourname,"_BattenbergProfile", sep=""), 
+                                    chr.names=chrom_names, 
+                                    tumourname=tumourname)
 }

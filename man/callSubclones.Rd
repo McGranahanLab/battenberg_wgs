@@ -15,13 +15,15 @@ callSubclones(
   chr_names,
   masking_output_file,
   max_allowed_state = 250,
+  cn_upper_limit = 1000,
   prior_breakpoints_file = NULL,
   gamma = 1,
   segmentation.gamma = NA,
   siglevel = 0.05,
   maxdist = 0.01,
   noperms = 1000,
-  seed = as.integer(Sys.time()),
+  cn_confidence_level = 0.95,
+  seed = as.integer(1),
   calc_seg_baf_option = 3
 )
 }
@@ -44,7 +46,9 @@ callSubclones(
 
 \item{masking_output_file}{Filename of where the masking details need to be written. Masking is performed to remove very high copy number state segments}
 
-\item{max_allowed_state}{The maximum CN state allowed (Default 100)}
+\item{max_allowed_state}{The maximum CN state allowed (Default 250)}
+
+\item{cn_upper_limit}{The maximum CN that can be called (Default 1000)}
 
 \item{prior_breakpoints_file}{A two column file with prior breakpoints, possibly from structural variants. This file must contain two columns: chromosome and position. These are used when making the figures}
 
@@ -57,6 +61,8 @@ callSubclones(
 \item{maxdist}{Slack in BAF space to allow a segment to be off it's optimum before becoming significant. A segment becomes significant very quickly when a breakpoint is missed, this parameter alleviates the effect (Default 0.01)}
 
 \item{noperms}{The number of permutations to be run when bootstrapping the confidence intervals on the copy number state of each segment (Default 1000)}
+
+\item{cn_confidence_level}{Main confidence level to use for the bootstrapped confidence intervals on nMajor and nMinor. Set to FALSE, NULL, NA or 0 to skip those intervals entirely (Default 0.95)}
 
 \item{seed}{Seed to set when performing bootstrapping (Default: Current time)}
 

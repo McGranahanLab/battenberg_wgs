@@ -26,7 +26,8 @@ run_haplotyping(
   beaglenthreads = 1,
   beaglewindow = 40,
   beagleoverlap = 4,
-  javajre = "java"
+  javajre = "java",
+  seed = as.integer(1)
 )
 }
 \arguments{
@@ -69,6 +70,8 @@ run_haplotyping(
 \item{beagleoverlap}{Integer size of the overlap between windows beagle5 Default:4}
 
 \item{javajre}{Path to the Java JRE executable (default java, i.e. in $PATH)}
+
+\item{seed}{Seed to pass through to impute2 when phasing with IMPUTE2 (Default: 1)}
 }
 \description{
 This function takes preprocessed data and performs haplotype reconstruction.
