@@ -606,3 +606,56 @@ timed <- system.time(battenberg(tumourname=TUMOURNAME,
                                 prior_breakpoints_file=NULL))
 ```
 
+Summary of commits since WEDGE lab pull:
+
+# Change Report (Pivot: dd3cc4ebe5fd7fdd2f19e38da7a0df1cdfe1ada9)
+
+## Before dd3cc4ebe5fd7fdd2f19e38da7a0df1cdfe1ada9
+Wedge lab updates.
+
+## After dd3cc4ebe5fd7fdd2f19e38da7a0df1cdfe1ada9
+
+### 1) Containerization and reproducible runtime setup
+- Added a Docker-based runtime for battenberg_wgs.
+- Introduced `.dockerignore` and refined Docker build instructions to support easier environment provisioning.
+
+### 2) Copy-number uncertainty and confidence interval workflow expansion
+- Added CI calculations for copy-number outputs.
+- Refined CI behavior and interpretation:
+  - centered intervals around fractional copy-number values,
+  - changed lower bound clamping behavior,
+  - added a post-hoc CI recalculation function.
+- Added/expanded output fields for raw Major/Minor values.
+
+### 3) Robustness improvements in segmentation/calling logic
+- Added explicit segmentation error handling and a controlled "skip segmentation" pathway.
+- Improved handling of sparse/edge cases:
+  - chromosome arms with few or no SNPs,
+  - missing WES solutions,
+  - situations without alternative solutions.
+- Added output of chrX non-PAR segments to solution files.
+- Exported MSAI correction output and normalized prior breakpoint conventions.
+
+### 4) Restartability and input compatibility
+- Added support for restarts when intermediate files are gzip-compressed (`.gz`).
+- Improved handling of region naming and coordinate/path consistency across key input stages.
+
+### 5) Test-mode and parameterization upgrades
+- Added a test mode with exposed parameters.
+- Restricted chromosome subsetting behavior to test mode.
+- Allowed larger imputation regions in test mode.
+
+### 6) Logging, observability, and operational diagnostics
+- Expanded diagnostic logging across execution stages, including:
+  - argument and staging logs,
+  - parallel/worker loop diagnostics,
+  - imputation debugging logs,
+  - clearer output organization.
+- These changes collectively improve debuggability and failure triage in production-like runs.
+
+### 7) Dependency, namespace, and documentation maturation
+- Added explicit dependency handling (including VariantAnnotation-related updates) and namespace/roxygen maintenance.
+- Updated README and man pages to align with new behaviors and parameters.
+
+## Minor/Maintenance Changes (De-emphasized)
+- Routine housekeeping such as `.gitignore` adjustments, cleanup commits, and small argument/file-name/order fixes were present but are not the primary functional changes.
