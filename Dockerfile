@@ -76,10 +76,12 @@ RUN curl -fsSL --retry 10 -o /tmp/downloads/ascat.tar.gz https://github.com/VanL
     R CMD INSTALL /tmp/downloads/ascat/ASCAT && \
     rm -rf /tmp/downloads/ascat /tmp/downloads/ascat.tar.gz
 
-RUN mkdir -p /opt/battenberg
-
-RUN repo_url="https://github.com/McGranahanLab/battenberg_wgs.git" && \
-    git clone --depth 1 $repo_url /opt/battenberg
+ARG GITHUB_TOKEN=""
+RUN if [ -z "$GITHUB_TOKEN" ]; then \
+      git clone --depth 1 https://github.com/McGranahanLab/battenberg_wgs.git /opt/battenberg; \
+    else \
+      git clone --depth 1 https://${GITHUB_TOKEN}@github.com/McGranahanLab/battenberg_wgs.git /opt/battenberg; \
+    fi
 
 RUN R CMD INSTALL /opt/battenberg
 
