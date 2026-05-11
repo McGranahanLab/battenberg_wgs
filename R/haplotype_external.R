@@ -301,7 +301,9 @@ get_multisample_phasing <- function(chrom, bbphasingprefixes, maxlag = 90, relat
 #' @param plotting Should the multisample phasing plots be made? (Default: TRUE)
 #' @author jdemeul
 #' @export
-call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumournames, plotting = T, RHO, PSI) {
+call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumournames, plotting = T, RHO = NULL, PSI = NULL, outdir = './') {
+  
+  if (!grepl(pattern = "/$", x = outdir)) outdir = paste0(outdir, "/")
 
   # compile all CN results (resolve .gz paths if needed)
   subclonescat <- lapply(X = subclonesfiles, FUN = function(x) {
@@ -381,7 +383,7 @@ call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumour
         p1 <- p1 + ggplot2::geom_point(data = df1, mapping = ggplot2::aes(x = pos, y = BAF), alpha = .6, colour = "#ef8a62", shape = 46, show.legend = F) + ggplot2::theme_minimal()
         p1 <- p1 + ggplot2::labs(x = "Position", y = "BAF", title = paste0(tumour, ": multisample phasing chr", chrom))
         
-        ggplot2::ggsave(filename = paste0(tumour, "_psi", PSI, "_rho", RHO ,"_multisample_phasing_chr", chrom, ".png"), plot = p1, width = 20, height = 5)
+        ggplot2::ggsave(filename = paste0(outdir, tumour, "_psi", PSI, "_rho", RHO ,"_multisample_phasing_chr", chrom, ".png"), plot = p1, width = 20, height = 5)
       }
     }
   }
@@ -392,7 +394,11 @@ call_multisample_MSAI <- function(rdsprefix, subclonesfiles, chrom_names, tumour
   for (col in names(msaiout)[list_cols]) {
     msaiout[[col]] <- sapply(msaiout[[col]], function(x) paste(x, collapse=","))
   }
-  write.table(x = msaiout[, -c(4:6)], file = paste0("psi", PSI, "_rho", RHO, "_multisample_MSAI.txt"), row.names = F, sep = "\t", quote = F)
+  out_clean = msaiout[, c("seqnames","start","end","frac_consensus","msai")]
+  if(is.null(PSI) | is.null(RHO)) {
+    PSI_RHO = ""
+  } else { PSI_RHO = paste0("psi_", PSI, "_rho_", RHO, "_") }
+  write.table(x = out_clean, file = paste0(outdir, PSI_RHO, "multisample_MSAI.txt"), row.names = F, sep = "\t", quote = F)
   return(NULL)
 }
 
@@ -446,5 +452,6 @@ run_MSAI <- function(samplenames, normalname, subclonesfiles, chrom_names,
                         tumournames = samplenames,
                         plotting = plotting,
                         RHO = rho,
-                        PSI = psi)
+                        PSI = psi,
+                        outdir = paste0(workdir, "/"))
 }
