@@ -421,7 +421,8 @@ callSubclones = function(sample.name, baf.segmented.file, logr.file, rho.psi.fil
   write.table(subcloneres[,c(main_columns, solution_A_columns)], output.file, quote=F, col.names=T, row.names=F, sep="\t")
 
   #write.table(subcloneres, gsub(".txt","_extended.txt",output.file), quote=F, col.names=T, row.names=F, sep="\t")
-  write.table(subcloneres, paste0(tools::file_path_sans_ext(output.file),"_extended.",tools::file_ext(output.file),sep=""), quote=F, col.names=T, row.names=F, sep="\t")
+  subcloneres_extended = normalize_subclones_extended_cis(subcloneres, epsilon=0.01)
+  write.table(subcloneres_extended, paste0(tools::file_path_sans_ext(output.file),"_extended.",tools::file_ext(output.file),sep=""), quote=F, col.names=T, row.names=F, sep="\t")
     # use this file to calculate other confidence levels post hoc:
   if (!is.null(res$segment_bootstraps)) {
     write.table(res$segment_bootstraps, sub("\\.txt$", "_copy_number_bootstraps.txt", output.file), quote=F, col.names=T, row.names=F, sep="\t")
@@ -582,6 +583,70 @@ calculate_bootstrap_interval = function(values, confidence_level) {
   return(interval)
 }
 
+#' Normalize copy-number CI triplets (cn/lower/upper). 
+#' This is modifing the original calculation, but down stream we need the following:
+#' CIs are never negative
+#' CIs are ordered (lower <= upper)
+#' CIs always contain the point estimate (cn)
+#' We use small epsilon to ensure these.
+#' @noRd
+normalize_cn_ci_triplet = function(cn, lower, upper, epsilon=0.01) {
+  cn = as.numeric(cn)
+  lower = as.numeric(lower)
+  upper = as.numeric(upper)
+
+  valid = !is.na(cn) & !is.na(lower) & !is.na(upper)
+  if (!any(valid)) {
+    return(list(cn=cn, lower=lower, upper=upper))
+  }
+
+  cn[valid] = pmax(cn[valid], 0)
+  lower[valid] = pmax(lower[valid], 0)
+  upper[valid] = pmax(upper[valid], 0)
+
+  ordered_lower = pmin(lower[valid], upper[valid])
+  ordered_upper = pmax(lower[valid], upper[valid])
+
+  bounded_lower = pmin(ordered_lower, cn[valid])
+  bounded_upper = pmax(ordered_upper, cn[valid])
+
+  equal_bounds = bounded_upper <= bounded_lower
+  if (any(equal_bounds)) {
+    bounded_upper[equal_bounds] = bounded_lower[equal_bounds] + epsilon
+  }
+
+  cn[valid] = pmin(pmax(cn[valid], bounded_lower), bounded_upper)
+  lower[valid] = bounded_lower
+  upper[valid] = bounded_upper
+
+  return(list(cn=cn, lower=lower, upper=upper))
+}
+
+#' Enforce CI constraints for subclones_extended-like tables
+#' @noRd
+normalize_subclones_extended_cis = function(df, epsilon=0.01) {
+  ci_triplets = list(
+    c("nMajor", "nMajor_ci_lower", "nMajor_ci_upper"),
+    c("nMinor", "nMinor_ci_lower", "nMinor_ci_upper")
+  )
+
+  for (triplet in ci_triplets) {
+    if (all(triplet %in% colnames(df))) {
+      normalized = normalize_cn_ci_triplet(
+        cn=df[[triplet[1]]],
+        lower=df[[triplet[2]]],
+        upper=df[[triplet[3]]],
+        epsilon=epsilon
+      )
+      df[[triplet[1]]] = normalized$cn
+      df[[triplet[2]]] = normalized$lower
+      df[[triplet[3]]] = normalized$upper
+    }
+  }
+
+  return(df)
+}
+
 #' Recalculate copy number confidence intervals from bootstrap data
 #'
 #' Reads a previously saved bootstrap file (produced by \code{callSubclones})
@@ -642,6 +707,7 @@ recalculate_cn_confidence_intervals = function(bootstraps_file, subclones_file=N
     subclones$nMajor_ci_upper = ci_ordered$nMajor_ci_upper
     subclones$nMinor_ci_lower = ci_ordered$nMinor_ci_lower
     subclones$nMinor_ci_upper = ci_ordered$nMinor_ci_upper
+    subclones = normalize_subclones_extended_cis(subclones, epsilon=0.01)
     
     if (is.null(output_file)) {
       output_file = subclones_file
@@ -1714,7 +1780,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   chrX_for_subclones = data.frame(
     chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
     BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
-    nMajor=outputDF$nMaj1, nMinor=outputDF$nMin1,
+    nMajor=outputDF$subclonalCN, nMinor=rep(0, nrow(outputDF)),
     nMaj1_A=outputDF$nMaj1, nMin1_A=outputDF$nMin1, frac1_A=outputDF$frac1,
     nMaj2_A=outputDF$nMaj2, nMin2_A=outputDF$nMin2, frac2_A=outputDF$frac2,
     SDfrac_A=NA, SDfrac_A_BS=NA, frac1_A_0.025=NA, frac1_A_0.975=NA,
@@ -1728,9 +1794,9 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   chrX_for_extended = data.frame(
     chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
     BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
-    nMajor=outputDF$nMaj1, nMinor=outputDF$nMin1,
+    nMajor=outputDF$subclonalCN, nMinor=rep(0, nrow(outputDF)),
     nMajor_ci_lower=outputDF$subclonalCN_ci_lower, nMajor_ci_upper=outputDF$subclonalCN_ci_upper,
-    nMinor_ci_lower=NA, nMinor_ci_upper=NA,
+    nMinor_ci_lower=rep(0, nrow(outputDF)), nMinor_ci_upper=rep(0, nrow(outputDF)),
     nMaj1_A=outputDF$nMaj1, nMin1_A=outputDF$nMin1, frac1_A=outputDF$frac1,
     nMaj2_A=outputDF$nMaj2, nMin2_A=outputDF$nMin2, frac2_A=outputDF$frac2,
     stringsAsFactors=FALSE)
@@ -1741,6 +1807,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   }
   chrX_for_extended = chrX_for_extended[, colnames(BB_ext), drop=FALSE]
   BB_ext_updated = rbind(BB_ext_no_x, chrX_for_extended)
+  BB_ext_updated = normalize_subclones_extended_cis(BB_ext_updated, epsilon=0.01)
   write.table(BB_ext_updated, subclones_extended_file, col.names=T, row.names=F, quote=F, sep="\t")
   
   # --- Legacy _copynumber.txt and _copynumber_extended.txt (backward compatibility) ---
@@ -1757,7 +1824,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   BBnew_extended=BB[which(is.na(match(BB$chr,c("X","chrX")))),] # copynumber_extended.txt columns for chrX
   
   outputDF_for_merge_extended=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,BAF=NA,pval=NA,LogR=outputDF$LogR,ntot=NA,
-                                         nMajor=outputDF$nMaj1,nMinor=outputDF$nMin1,
+                                         nMajor=outputDF$subclonalCN,nMinor=rep(0, nrow(outputDF)),
                                          nMaj1_A=outputDF$nMaj1,nMin1_A=outputDF$nMin1,frac1_A=outputDF$frac1,nMaj2_A=outputDF$nMaj2,nMin2_A=outputDF$nMin2,
                                          frac2_A=outputDF$frac2)
   BtoFsolutions=data.frame(matrix(nrow= nrow(outputDF),ncol = ncol(BB)-ncol(outputDF_for_merge_extended)))
