@@ -1774,9 +1774,12 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   # Construct solution-specific filenames
   subclones_file = paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_subclones.txt")
   subclones_extended_file = paste0(tumourname, "_", solution_type, "_psi", PSI, "_rho", RHO, "_subclones_extended.txt")
+
+  # Handle mixed chrX labels from upstream inputs (X/chrX/x/chrx/23)
+  x_labels = c("x", "chrx", "23")
   
   # --- Update solution-specific _subclones.txt (19 columns) ---
-  BB_no_x = BB[which(is.na(match(BB$chr, c("X","chrX")))), ]
+  BB_no_x = BB[!(tolower(as.character(BB$chr)) %in% x_labels), ]
   chrX_for_subclones = data.frame(
     chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
     BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
@@ -1790,7 +1793,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   
   # --- Update solution-specific _subclones_extended.txt (full columns) ---
   BB_ext = read.table(subclones_extended_file, header=T, stringsAsFactors=F)
-  BB_ext_no_x = BB_ext[which(is.na(match(BB_ext$chr, c("X","chrX")))), ]
+  BB_ext_no_x = BB_ext[!(tolower(as.character(BB_ext$chr)) %in% x_labels), ]
   chrX_for_extended = data.frame(
     chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
     BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
@@ -1811,7 +1814,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   write.table(BB_ext_updated, subclones_extended_file, col.names=T, row.names=F, quote=F, sep="\t")
   
   # --- Legacy _copynumber.txt and _copynumber_extended.txt (backward compatibility) ---
-  BBnew=BB[which(is.na(match(BB$chr,c("X","chrX")))),c("chr","startpos","endpos","nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A")]
+  BBnew=BB[!(tolower(as.character(BB$chr)) %in% x_labels),c("chr","startpos","endpos","nMaj1_A","nMin1_A","frac1_A","nMaj2_A","nMin2_A","frac2_A")]
   
   outputDF_for_merge=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,
                                 nMaj1_A=outputDF$nMaj1,nMin1_A=outputDF$nMin1,frac1_A=outputDF$frac1,
@@ -1821,7 +1824,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   BBnew=rbind(BBnew,outputDF_for_merge)
   write.table(BBnew,paste0(tumourname,"_copynumber.txt"),col.names = T,row.names = F,quote = F,sep="\t")
   
-  BBnew_extended=BB[which(is.na(match(BB$chr,c("X","chrX")))),] # copynumber_extended.txt columns for chrX
+  BBnew_extended=BB[!(tolower(as.character(BB$chr)) %in% x_labels),] # copynumber_extended.txt columns for chrX
   
   outputDF_for_merge_extended=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,BAF=NA,pval=NA,LogR=outputDF$LogR,ntot=NA,
                                          nMajor=outputDF$subclonalCN,nMinor=rep(0, nrow(outputDF)),
