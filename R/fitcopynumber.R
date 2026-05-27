@@ -1383,7 +1383,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
     x_centromere=c(58632012,61632012)
     ar=data.frame(startpos=66763874,endpos=66950461)
   } else if (genomebuild=="hg38") {
-    par_regions=c(2781479,156030895)
+    par_regions=c(2781479,155701383)
     x_centromere=c(58605580,62412542)
     ar=data.frame(startpos=67544021,endpos=67730619)
   } else {
