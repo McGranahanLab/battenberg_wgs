@@ -586,3 +586,32 @@ flatten_organized_output <- function() {
 
   return(invisible(n_moved))
 }
+
+#' Decompress all gzipped output files
+#'
+#' Finds all *.gz files in the working directory (recursively) and
+#' decompresses them, restoring original filenames. Used at the start
+#' of a restart run after flatten_organized_output() so pipeline stages
+#' can locate their expected input files.
+#'
+#' @return Invisible integer count of files decompressed
+#' @export
+unzip_all_files <- function() {
+  gz_files <- list.files(pattern = "\\.gz$", recursive = TRUE)
+  n_decompressed <- 0L
+
+  for (gz_file in gz_files) {
+    tryCatch({
+      R.utils::gunzip(gz_file, remove = TRUE, overwrite = TRUE)
+      n_decompressed <- n_decompressed + 1L
+    }, error = function(e) {
+      warning(paste0("Failed to decompress: ", gz_file, " - ", conditionMessage(e)))
+    })
+  }
+
+  if (n_decompressed > 0) {
+    print(paste0("Decompressed ", n_decompressed, " gzipped files for restart"))
+  }
+
+  return(invisible(n_decompressed))
+}

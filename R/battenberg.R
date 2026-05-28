@@ -172,6 +172,7 @@ battenberg = function(analysis="paired",
   any_skip <- any(skip_preprocessing, skip_phasing, skip_segmentation, skip_allele_counting)
   if (organize_output && any_skip) {
     flatten_organized_output()
+    unzip_all_files()
   }
 
   pipeline_start_time <- Sys.time()
