@@ -171,6 +171,7 @@ battenberg = function(analysis="paired",
   # --- Flatten organized subdirectories for restart compatibility ---
   any_skip <- any(skip_preprocessing, skip_phasing, skip_segmentation, skip_allele_counting)
   if (organize_output && any_skip) {
+    print("Restart with skip flags detected and organize_output=TRUE, flattening output subdirectories and unzipping files for processing...")
     flatten_organized_output()
     unzip_all_files()
   }
