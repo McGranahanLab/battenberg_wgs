@@ -22,10 +22,11 @@
 #' @param preset_rho A user specified rho to fit a copy number profile to (Default NA)
 #' @param preset_psi A user specified psi to fit a copy number profile to (Default NA)
 #' @param read_depth Legacy parameter that is no longer used (Default 30)
+#' @param extra_solutions A table with additional solutions to be run through ASCAT, assumes columns "psi", "rho", "solution_type" (Default NULL)
 #' @param analysis A String representing the type of analysis to be run, this determines whether the distance figure is produced (Default paired)
 #' @author dw9, sd11
 #' @export
-fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmented, inputfile.baf, inputfile.logr, dist_choice, ascat_dist_choice, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1,  max.rho=1.0, min.goodness=63, uninformative_BAF_threshold=0.51, gamma_param=1, use_preset_rho_psi=F, preset_rho=NA, preset_psi=NA, read_depth=30, analysis="paired", nthreads, enhanced_grid_search=F, PURPLE_purity_path, External_WES_purity_path) {
+fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmented, inputfile.baf, inputfile.logr, dist_choice, ascat_dist_choice, min.ploidy=1.6, max.ploidy=4.8, min.rho=0.1,  max.rho=1.0, min.goodness=63, uninformative_BAF_threshold=0.51, gamma_param=1, use_preset_rho_psi=F, preset_rho=NA, preset_psi=NA, read_depth=30, analysis="paired", nthreads, enhanced_grid_search=F, extra_solutions=NULL) {
     
   assert.file.exists(inputfile.baf.segmented)
   assert.file.exists(inputfile.baf)
@@ -177,69 +178,6 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
     
   # All is set up, now run ASCAT to obtain a clonal copynumber profile
   
-  # KT: run_clonal_ASCAT needs to be run for each alternative solution
-  # from ascat_optimum_pair only ever the first solution $psi and $rho are being used
-  # this happens in get_new_bounds()
-  # so let's iterate over that, make sure format stays same
-  # and also add solutions from PURPLE and run over those
-  # and also run over manual QC TRACERx421 WES solutions
-  # add the PURPLE and External WES solutions to the alternative solution path
-  
-  purple_solution <- NULL
-  wes_solution <- NULL
-
-  if(!is.null(PURPLE_purity_path)){
-    if (!file.exists(PURPLE_purity_path)) {
-      warning(paste0(
-        "PURPLE purity file not found: '", PURPLE_purity_path, "'. ",
-        "Continuing without PURPLE default solution."
-      ))
-    } else {
-    purple_tmp <- read.table(PURPLE_purity_path, head = T, sep = "\t")
-    if (nrow(purple_tmp) > 0) {
-      purple_tmp <- purple_tmp[, c("purity", "ploidy"), drop = FALSE]
-      colnames(purple_tmp) <- c("rho", "psi")
-      purple_tmp$solution_type <- "purpleDefault"
-      # Ensure consistent column order for rbind compatibility
-      purple_solution <- purple_tmp[, c("psi", "rho", "solution_type"), drop = FALSE]
-    } else {
-      warning(paste0(
-        "No rows found in PURPLE purity file. ",
-        "Expected sample '", samplename, "' in file '", PURPLE_purity_path, "'. ",
-        "Continuing without PURPLE default solution."
-      ))
-    }
-    }
-  }
-
-  if(!is.null(External_WES_purity_path)){
-    if (!file.exists(External_WES_purity_path)) {
-      warning(paste0(
-        "External WES purity file not found: '", External_WES_purity_path, "'. ",
-        "Continuing without WES manual QC solution."
-      ))
-    } else {
-    wes_tmp <- read.table(External_WES_purity_path, head = T, sep = "\t")
-    # saniteze sample name. Assume hashes are always separated by double dash:
-    samplename_sanitized <- gsub("--.*", "", samplename)
-    wes_tmp <- wes_tmp[wes_tmp$region == samplename_sanitized, , drop = FALSE]
-    if (nrow(wes_tmp) > 0) {
-      wes_tmp <- wes_tmp[, c("Ploidy", "ACF"), drop = FALSE]
-      colnames(wes_tmp) <- c("psi", "rho")
-      wes_tmp$solution_type <- "WESmanualQC"
-      # Ensure consistent column order for rbind compatibility
-      wes_solution <- wes_tmp[, c("psi", "rho", "solution_type"), drop = FALSE]
-    } else {
-      warning(paste0(
-        "No matching rows for sample '", samplename, "' in External WES purity file '", External_WES_purity_path, "'. ",
-        "Continuing without WES manual QC solution."
-      ))
-    }
-    }
-  }
-  
-
-  
   # add this to the alternative solutions but make sure where the different solutions come from
   # actually let's just restructure the data frame to iterate over, so that it also contains the
   # battenberg default solution
@@ -255,15 +193,6 @@ fit.copy.number = function(samplename, outputfile.prefix, inputfile.baf.segmente
   default_solution_df <- default_solution_df[, c("psi", "rho", "solution_type"), drop = FALSE]
   alternative_solutions_df <- alternative_solutions_df[, c("psi", "rho", "solution_type"), drop = FALSE]
   
-  extra_solutions <- NULL
-  if (!is.null(purple_solution) && !is.null(wes_solution)) {
-    extra_solutions <- rbind(purple_solution, wes_solution)
-  } else if (!is.null(purple_solution)) {
-    extra_solutions <- purple_solution
-  } else if (!is.null(wes_solution)) {
-    extra_solutions <- wes_solution
-  }
-
   if (!is.null(extra_solutions)) {
     all_alternative_solutions <- rbind(default_solution_df, alternative_solutions_df, extra_solutions)
   } else {

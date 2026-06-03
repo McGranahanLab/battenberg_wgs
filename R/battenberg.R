@@ -74,6 +74,7 @@
 #' @param impute_region_size Size of genomic windows in bp used by IMPUTE2 for phasing. Larger values mean fewer chunks and faster runtime at the cost of more RAM (Default: 5000000; test_mode default: 20000000)
 #' @param test_chromosomes Character vector of chromosome names to restrict the analysis to, e.g. c("1", "10", "21"). NULL means use all chromosomes from the impute info file (Default: NULL)
 #' @param organize_output Organize output files into subdirectories (results/, intermediate/, plots/, logs/) after processing. On restart with any skip flag, files are flattened back to the working directory first (Default: TRUE)
+#' @param extra_solutions List per sample with additional solutions to fit. Each element in the lis is a table with columns "psi", "rho", "solution_type" (Default NULL)
 #' @author sd11, jdemeul, Naser Ansari-Pour, Julio Cesar Cortes Rios
 #' @export
 battenberg = function(analysis="paired",
@@ -140,8 +141,7 @@ battenberg = function(analysis="paired",
                       genomebuild="hg19",
                       chrom_coord_file=NULL,
 		                  enhanced_grid_search = F,
-                      purple_path=NULL,
-                      WES_solutions=NULL,
+                      extra_solutions = NULL,
                       test_mode=FALSE,
                       noperms=1000,
                       impute_region_size=5000000,
@@ -830,8 +830,7 @@ battenberg = function(analysis="paired",
                     analysis=analysis,
                     nthreads=nthreads,
                     enhanced_grid_search=enhanced_grid_search,
-                    PURPLE_purity_path=purple_path[sampleidx],
-                    External_WES_purity_path = WES_solutions)
+                    extra_solutions=extra_solutions[sampleidx])
     
     # KT: need to iterate over callSubclones for each soltion that we find in fit.copy.numberd
     # first read in file with all soltions
