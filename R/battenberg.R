@@ -1,8 +1,7 @@
 
 # function to run the Battenberg pipeline
 # heavily modified by Oriol Pich and Kerstin Thol to run on txWGs data
-# and to run for multiple solutions, including multiple solutions from PURPLE and
-# manually QC'd TRAXERx421 WES solutions
+# and to run for multiple solutions
 
 #' Run the Battenberg pipeline
 #'
@@ -285,8 +284,7 @@ battenberg = function(analysis="paired",
     paste0("prior_breakpoints_file = ", if (is.null(prior_breakpoints_file)) "NULL" else prior_breakpoints_file),
     paste0("chrom_coord_file = ", if (is.null(chrom_coord_file)) "NULL" else chrom_coord_file),
     paste0("enhanced_grid_search = ", enhanced_grid_search),
-    paste0("purple_path = ", if (is.null(purple_path)) "NULL" else purple_path),
-    paste0("WES_solutions = ", if (is.null(WES_solutions)) "NULL" else WES_solutions),
+    paste0("extra_solutions = ", if (is.null(extra_solutions)) "NULL" else extra_solutions),
     paste0("test_mode = ", test_mode),
     paste0("noperms = ", noperms),
     paste0("impute_region_size = ", impute_region_size),
