@@ -828,7 +828,7 @@ battenberg = function(analysis="paired",
                     analysis=analysis,
                     nthreads=nthreads,
                     enhanced_grid_search=enhanced_grid_search,
-                    extra_solutions=extra_solutions[sampleidx])
+                    extra_solutions=extra_solutions[[sampleidx]])
     
     # KT: need to iterate over callSubclones for each soltion that we find in fit.copy.numberd
     # first read in file with all soltions
