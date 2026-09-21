@@ -1711,7 +1711,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   BB_no_x = BB[!(tolower(as.character(BB$chr)) %in% x_labels), ]
   chrX_for_subclones = data.frame(
     chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
-    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=outputDF$sublonalCN,
+    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=outputDF$subclonalCN,
     nMajor=outputDF$subclonalCN, nMinor=rep(0, nrow(outputDF)),
     nMaj1_A=outputDF$nMaj1, nMin1_A=outputDF$nMin1, frac1_A=outputDF$frac1,
     nMaj2_A=outputDF$nMaj2, nMin2_A=outputDF$nMin2, frac2_A=outputDF$frac2,
