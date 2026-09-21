@@ -1711,7 +1711,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   BB_no_x = BB[!(tolower(as.character(BB$chr)) %in% x_labels), ]
   chrX_for_subclones = data.frame(
     chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
-    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
+    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=outputDF$subclonalCN,
     nMajor=outputDF$subclonalCN, nMinor=rep(0, nrow(outputDF)),
     nMaj1_A=outputDF$nMaj1, nMin1_A=outputDF$nMin1, frac1_A=outputDF$frac1,
     nMaj2_A=outputDF$nMaj2, nMin2_A=outputDF$nMin2, frac2_A=outputDF$frac2,
@@ -1725,7 +1725,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   BB_ext_no_x = BB_ext[!(tolower(as.character(BB_ext$chr)) %in% x_labels), ]
   chrX_for_extended = data.frame(
     chr=outputDF$chrom, startpos=outputDF$startpos, endpos=outputDF$endpos,
-    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=NA,
+    BAF=NA, pval=NA, LogR=outputDF$LogR, ntot=outputDF$sublonalCN,
     nMajor=outputDF$subclonalCN, nMinor=rep(0, nrow(outputDF)),
     nMajor_ci_lower=outputDF$subclonalCN_ci_lower, nMajor_ci_upper=outputDF$subclonalCN_ci_upper,
     nMinor_ci_lower=rep(0, nrow(outputDF)), nMinor_ci_upper=rep(0, nrow(outputDF)),
@@ -1755,7 +1755,7 @@ callChrXsubclones = function(tumourname,X_gamma=1000,X_kmin=100,genomebuild,AR=T
   
   BBnew_extended=BB[!(tolower(as.character(BB$chr)) %in% x_labels),] # copynumber_extended.txt columns for chrX
   
-  outputDF_for_merge_extended=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,BAF=NA,pval=NA,LogR=outputDF$LogR,ntot=NA,
+  outputDF_for_merge_extended=data.frame(chr=outputDF$chrom,startpos=outputDF$startpos,endpos=outputDF$endpos,BAF=NA,pval=NA,LogR=outputDF$LogR,ntot=outputDF$sublonalCN,
                                          nMajor=outputDF$subclonalCN,nMinor=rep(0, nrow(outputDF)),
                                          nMaj1_A=outputDF$nMaj1,nMin1_A=outputDF$nMin1,frac1_A=outputDF$frac1,nMaj2_A=outputDF$nMaj2,nMin2_A=outputDF$nMin2,
                                          frac2_A=outputDF$frac2)
